@@ -1,15 +1,17 @@
 #ifndef _VECTOR_HPP_
 #define _VECTOR_HPP_
 
-
 #include <stdio.h>
 #include <stdlib.h>
-#include <cuda.h>
 
+#ifdef USE_GPU
+#include <cuda.h>
 #include <thrust/device_ptr.h>
 #include <thrust/device_vector.h>
-#include <thrust/host_vector.h>
 #include <thrust/copy.h>
+#endif
+
+#include <thrust/host_vector.h>
 
 #include "Vector.hpp"
 
@@ -20,14 +22,15 @@ namespace LinearAlgebra {
 		template<class T>
 		class Vector {
 			protected: 
+				// CPU Holder
+				thrust::host_vector<T> hV; // CPU holder
+				int N; // Size
+
 				#ifdef USE_GPU
 				T *dV; 	// Raw pointer
 				thrust::device_ptr<T> dpV; // Thrust device_ptr to dV; allows for using thrust and cusp functions
 
 				#endif
-				thrust::host_vector<T> hV; // CPU holder
-
-				int N; // Size
 
 			public:
 				// Constructor
@@ -55,12 +58,7 @@ namespace LinearAlgebra {
 				}
 
 				//// GPU Methods
-				// Getter for GPU kernels
 				#ifdef USE_GPU
-				__inline__ __device__ T at_gpu(int N) {
-					return dV[N]; 
-				}
-
 				// Setter for GPU kernels
 				__host__ __device__ T operator[](int N) const {
 					#ifdef __CUDA_ARCH__
@@ -69,7 +67,7 @@ namespace LinearAlgebra {
 						return hV[N];
 					#endif	
 				}	
-				__inline__ __device__ T & operator[](int N) {
+				__host__ __device__ T & operator[](int N) {
 					#ifdef __CUDA_ARCH__
 						return dV[N];
 					#else
@@ -85,8 +83,16 @@ namespace LinearAlgebra {
 				void copyToDevice() {
 					thrust::copy(hV.begin(), hV.end(), dpV );
 				}	
+				#else
+				T operator[](int N) const {
+					return hV[N];
+				}	
+				T & operator[](int N) {
+					return hV[N];
+				}	
+				#endif
 
-				#endif	
+
 
 				const int size() {
 					return N;
