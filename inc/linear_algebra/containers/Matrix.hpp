@@ -2,13 +2,9 @@
 #define _MATRIX_HPP_
 
 #include <cuda.h>
+
 #include <thrust/device_ptr.h>
-#include <thrust/device_vector.h>
-#include <thrust/copy.h>
-
 #include <thrust/host_vector.h>
-
-// The matrices are represented in a flat array fashion. They are row major.
 
 namespace LinearAlgebra {
 	namespace Containers {
@@ -27,55 +23,20 @@ namespace LinearAlgebra {
 				T *dM;				//  Raw GPU pointer
 			
 			public:
-				// Constructor
-				Matrix(int nbRow, int nbCol) {
-					hM.resize(nbRow*nbCol);
-					this->nbCol = nbCol;
-					this->nbRow = nbRow;
-
-					cudaMalloc((void**)&dM,nbCol*nbRow*sizeof(T));
-					dpM = thrust::device_pointer_cast(dM);
-				}	
-				// Destructor
-				~Matrix() {
-					cudaFree(dM);
-					hM.clear();
-					nbCol = 0;
-					nbRow = 0;
-				}	
-
-				//// GPU Methods
-				// Getter and setters for CPU and GPU 
-				__host__ __device__ T operator[][](int I, int J) const {
-					#ifdef __CUDA_ARCH__
-						return dM[J+I*nbCol];
-					#else
-						return hV[J+I*nbCol];
-					#endif	
-				}	
-				__host__ __device__ T & operator[][](int I, int J) const {
-					#ifdef __CUDA_ARCH__
-						return dM[J+I*nbCol];
-					#else
-						return hV[J+I*nbCol];
-					#endif
-				}
-				// Copy data
-				void copyFromDevice() {
-					thrust::copy_n(dpM,nbCol*nbRow,hM.begin());
-				}
-				void copyToDevice() {
-					thrust::copy(hM.begin(), hM.end(), dpM);
-				}
-
-				const int getNbRow() {
+				virtual void copyFromDevice() = 0;
+				virtual void copyToDevice() = 0;
+				// Get number of rows
+				virtual const int getNbRows() {
 					return nbRow;
 				}
-				const int getNbCol() {
+				// Get number of columns
+				virtual const int getNbCols() {
 					return nbCol;
-				}	
-			};	
+				}
+
+		};	
 	}	
 }
 
 #endif
+
