@@ -3,3 +3,12 @@
 
 # Executables
 *.x
+
+# Directories
+bin/
+obj/
+html/
+latex/
+
+# Doxygen doc
+Doxyfile
