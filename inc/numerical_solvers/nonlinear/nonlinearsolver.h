@@ -9,9 +9,8 @@
 #pragma once
 
 namespace NumericalSolver {
+	template<typename T>
 	class NonLinearSolver {
-		public:
-			virtual void compute() = 0;
 	};		
 }	
 

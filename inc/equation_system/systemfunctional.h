@@ -7,16 +7,18 @@
  */
 #pragma once
 
-#include <clientp.hpp>
 
+// STD
 #include <vector>
 #include <map>
 #include <string>
 
-#include <cusolve.h>
-#include <evalnode.h>
+// CUSP
+#include <cusp/array1d.h>
 
-using namespace LinearAlgebra::Containers;
+// CuSolve
+#include <equation_system/clientp.hpp>
+#include <equation_system/evalnode.h>
 
 namespace System {
 
@@ -24,10 +26,9 @@ namespace System {
 	class SystemFunctional {
 		protected:
 			// Host 
-			//std::vector<T> kInds; /*!< k indices for equations */ 
-			Vector<T> kInds;
+			std::vector<T> h_kInds; /*!< k indices for equations */ 
 			std::vector<T> constants; /*!< all constant and sign data */
-			std::vector<map<T,T>> yFull; /*!< all y data (yindex(key) & power(value)) */
+			std::vector< map<T,T> > yFull; /*!< all y data (yindex(key) & power(value)) */
 			std::vector<int> terms; /*!< Number of terms per equation evaluation */
 
 			int maxElements; /*!< Maximum number of terms in the equation evaluation */
@@ -37,6 +38,7 @@ namespace System {
 			EvalNode *d_fNodes;
 			int *d_fTerms;
 			int *d_fOffsetTerms;
+			cusp::array1d<T,cusp::device_memory> d_kInds;
 
 		public:
 			/*!\brief Constructor with filename
@@ -49,16 +51,21 @@ namespace System {
 			/*!\brief Evaluation of the system functional, based on the data stored in the device memory
 			 *
 			 *
+			 * @param[inout] F vector where the evaluation is stored
 			 * @param[in] Y vector at which we want to evaluate the functional
 			 */ 
-			__host__ void eval(const Vector<T> Y);
+			__host__ void evaluate(
+					cusp::array1d<T,cusp::device_memory> &F,
+					const cusp::array1d<T,cusp::device_memory> &Y);
 
 		private:
 			/*!\brief Kernel for the evaluation of the system functional
 			 *
+			 *
+			 * @param[in] d_fp device function pointer, which is obtained from a raw pointer cast of a cusp array1d
 			 */ 
-			__global__ void k_eval(void); 
+			__global__ void k_evaluate(T *d_fp); 
 	};
 } // end of System	
 
-#include <detail/systemfunctional.inl>
+#include <equation_system/detail/systemfunctional.inl>

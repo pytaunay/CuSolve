@@ -1,0 +1,94 @@
+/**
+ * @file newtonraphson.inl
+ * @author Pierre-Yves Taunay (py.taunay@psu.edu)
+ * @date November, 2013
+ * @brief Implementations of the methods of the class NewtonRaphson
+ *
+ */
+
+//// CUDA
+#include <cuda.h>
+
+// Thrust
+#include <thrust/transform.h>
+
+// CUSP
+#include <cusp/detail/matrix_base.h>
+#include <cusp/array1d.h>
+#include <cusp/format.h>
+
+//// CuSolve
+// Equation system
+//#include <equation_system/systemjacobian.h>
+//#include <equation_system/systemfunctional.h>
+
+//using namespace System;
+
+namespace NumericalSolver {
+
+		template<typename T>
+		NewtonRaphson<T>::
+			NewtonRaphson() {
+				this->maxIter = 50;
+				this->tol = (T)1e-6;
+				//this->lsolve = new LUDirect();
+			}	
+
+		template<typename T>
+		NewtonRaphson<T>::
+			NewtonRaphson(const int maxIter) {
+				this->tol = (T)1e-6;
+				this->maxIter = maxIter;
+				//this->lsolve = new LUDirect()
+			}
+
+		template<typename T>
+		NewtonRaphson<T>::
+			NewtonRaphson(LinearSolver<T> *lsolve, int maxIter, T tol) {
+				this->tol = tol;
+				this->maxIter = maxIter;
+				this->lsolve = lsolve;
+			}	
+
+		template<typename T>
+		NewtonRaphson<T>::
+			~NewtonRaphson() {}
+
+/*
+		template<typename T>
+		void NewtonRaphson<T>::
+			compute(
+				const SystemFunctional<T> &F,
+				const SystemJacobian<T,Format> &J,
+				cusp::array1d<T,cusp::device_memory> &Fv,
+				cusp::detail::matrix_base<int,T,cusp::device_memory,cusp::known_format> &Jv,
+				cusp::array1d<T,cusp::device_memory> &d,
+				cusp::array1d<T,cusp::device_memory> &Y
+				) 
+			{
+				// Evaluate the Jacobian and the functional for the first iteration; stores results in Fv and Jv
+				F.evaluate(Fv,Y);
+				J.evaluate(Jv,Y);
+
+				for(int N = 0; N < this->maxIter; N++) {
+					// Solve J*d = -F
+					this->lsolve->compute(Jv,d,Fv);	
+
+					// Update Y from delta: Y = Y + d
+					thrust::transform(	Y.begin(), 
+								Y.end(), 
+								d.begin(), 
+								Y.begin(), 
+								thrust::plus<T>()) 
+					
+					// Calculate the tolerance
+
+					// Break if tolerance is attained
+					
+					// Update the Jacobian and the functional
+					F.evaluate(Fv,Y);
+					J.evaluate(Jv,Y);
+				}	
+			} // End of NewtonRaphson :: compute
+*/			
+} // End of namespace NumericalSolver			

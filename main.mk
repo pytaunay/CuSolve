@@ -5,8 +5,8 @@ BUILD_DIR := obj
 TARGET := prog.x
 
 # Any includes
-SRC_INCDIRS := inc/ ~/work/boost_1_51_0/
-INCDIRS := inc/ ~/work/boost/1_51_0
+SRC_INCDIRS := inc/ 
+INCDIRS := inc/ 
 
 
 # Move the binary to bin/

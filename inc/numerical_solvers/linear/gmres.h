@@ -7,35 +7,64 @@
  */
 #pragma once
 
-#include <cusolve.h>
-
 #include <cuda.h>
-#include <cusp/krylov/gmres.h>
 
+//// CUSP
+#include <cusp/format.h>
+#include <cusp/detail/matrix_base.h>
+#include <cusp/array1d.h>
+#include <cusp/coo_matrix.h>
 
-using namespace LinearAlgebra::Containers;
+//// Thrust
+
+//// CuSolve
+#include <numerical_solvers/linear/linearsolver.h>
 
 namespace NumericalSolver {
-	class GMRES : public LinearSolver {
+	
+	/*!\class GMRES gmres.h "inc/numerical_solvers/linear/gmres.h"
+	 * \brief GMRES class
+	 *
+	 *
+	 * Class wrapper for the GMRES solver, an iterative solver for the linear equation
+	 * \f[
+	 * A X = b
+	 * \f]
+	 * where \f$A\in{\Re}^{N\times N}\f$, \f$X\in{\Re}^{N}\f$, and \f$b\in{\Re}^{N}\f$
+	 */
+	template<typename T>
+	class GMRES : public LinearSolver<T> {
 		protected:
-			int restartIter; 	
-			int maxIter;		
-			double tol;		
+			int restartIter; 	/*!< Number of iterations before restart */ 	
+			int maxIter;		/*!< Maximum number of iterations */
+			T relTol;		/*!< Relative tolerance */
+			T absTol;		/*!< Absolute tolerance */
 
 		public:
 			GMRES() {
 				this->restartIter = 50;
-				this->maxIter = 500;
-				this->tol = 1e-6;
+				this->maxIter = 5000;
+				this->relTol = (T)1e-6;
+				this->absTol = (T)1e-8;
 			}	
 
-/*
-			void compute(SparseMatrix<float> &A, SparseVector<float> &b, SparseVector<float> &x); 
-			void compute(SparseMatrix<double> &A, SparseVector<double> &b, SparseVector<double> &x); 
-			void compute(FullMatrix<float> &A, Vector<float> &b, Vector<float> &x); 
-			void compute(FullMatrix<double> &A, Vector<double> &b, Vector<double> &x); 
-*/
+			void compute(
+				//	const cusp::detail::matrix_base<int,T,cusp::device_memory,cusp::known_format> &A,
+					const cusp::coo_matrix<int,T,cusp::device_memory> &A,
+					const cusp::array1d<T,cusp::device_memory> &b,
+					cusp::array1d<T,cusp::device_memory> &x);
+			void compute(
+					const cusp::csr_matrix<int,T,cusp::device_memory> &A,
+					const cusp::array1d<T,cusp::device_memory> &b,
+					cusp::array1d<T,cusp::device_memory> &x);
+
+			void compute(
+					const cusp::detail::matrix_base<int,T,cusp::device_memory,cusp::dense_format> &A,
+					const cusp::array1d<T,cusp::device_memory> &b,
+					cusp::array1d<T,cusp::device_memory> &x);
+
 			// Sparse matrix implementation
+			/*
 			void compute	(	SparseMatrix<float> &A, 
 						cusp::array1d<float,cusp::device_memory> &b, 
 						cusp::array1d<float,cusp::device_memory> &x
@@ -56,10 +85,8 @@ namespace NumericalSolver {
 						double *b,
 						double *x
 					); 
-
-
-
-
+			*/
 	};		
 }
 
+#include <numerical_solvers/linear/detail/gmres.inl>

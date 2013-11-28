@@ -10,7 +10,7 @@
 
 namespace System {
 	template<typename T>
-	typedef struct{
+	struct EvalNode{
 
 		T constant;
 		int kIdx;
@@ -19,6 +19,6 @@ namespace System {
 		int yIdx2;
 		T yExp2;
 
-	} EvalNode;
+	};
 }
 

@@ -5,26 +5,26 @@
  * @brief Class representation of the Jacobian of a system of equations
  *
  */
+
 #pragma once
 
+//// STD
 #include <vector>
 #include <map>
 
-
-#include <cusolve.h>
-
-using namespace LinearAlgebra::Containers;
+//// CuSolve 
+#include <equation_system/evalnode.h>
 
 namespace System {
 
-	template<typename T, template<class> class MType> 
+	template<typename T> 
 	class SystemJacobian {
 		protected:
 			// Host
 			std::vector<int> terms;	
 			std::vector<T> kInds;
 			std::vector<T>  constants;
-			std::vector<map<T,T> > jFull;
+			std::vector< map<T,T> > jFull;
 
 			int maxElements;
 
@@ -33,30 +33,13 @@ namespace System {
 			int *d_jTerms;
 			int *d_jOffsetTerms;	
 			
+		/*
 		public:
-
-
-
-
+			__host__ virtual void evaluate() = 0;
+			__global__ void k_evaluate();
+		*/
+			
 	};
-
-	// Partial specialization for COOMatrices
-	template<typename T>
-	class SparseSystemJacobian <T,COOMatrix> : public SystemJacobian <T,COOMatrix> {
-		protected:
-			// Host
-			std::vector<int> idxI;
-			std::vector<int> idxJ;
-		
-		public:
-
-
-		
-
-
-
-	};
-
 } // End namespace System	
 
 

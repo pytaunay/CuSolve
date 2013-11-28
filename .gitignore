@@ -9,6 +9,7 @@ bin/
 obj/
 html/
 latex/
+src/
 
 # Doxygen doc
 Doxyfile
