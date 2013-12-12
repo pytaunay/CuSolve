@@ -90,7 +90,7 @@ namespace NumericalSolver {
 			
 			void compute(
 				const SystemFunctional<T> &F,
-				const SystemJacobian<T,Format> &J,
+				const SystemJacobian<T> &J,
 				cusp::array1d<T,cusp::device_memory> &Fv,
 				cusp::detail::matrix_base<int,T,cusp::device_memory,cusp::known_format> &Jv,
 				cusp::array1d<T,cusp::device_memory> &d,

@@ -24,7 +24,7 @@ namespace System {
 			std::vector<int> terms;	
 			std::vector<T> kInds;
 			std::vector<T>  constants;
-			std::vector< map<T,T> > jFull;
+			std::vector< std::map<T,T> > jFull;
 
 			int maxElements;
 

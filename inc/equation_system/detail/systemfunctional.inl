@@ -5,32 +5,45 @@
  * @brief Implementation details of the methods of the class SystemFunctional
  *
  */
+#include <iostream>
+#include <fstream>
 
 #include <cuda.h>
 #include <cusp/array1d.h>
+
+#include <equation_system/clientp.hpp>
+#include <checks.cuh>
 
 /*\XXX TODO: Texture representation for doubles*/
 texture<float,1,cudaReadModeElementType> yTex;
 texture<float,1,cudaReadModeElementType> kTex;
 
+#define SHARED_BUF_SIZE 256 
+
 namespace System {
+	using namespace clientp;
+	using namespace std;
 	template<typename T>
 	SystemFunctional<T>
-		::SystemFunctional(string filename) {
+		::SystemFunctional(char *k_values,char *equations_file) {
 
-		ifstream ifile(filename);
+		// LION-CODES: parser_main 
+		std::ifstream ifile(k_values);
 		string value;
 		bool success=false;
 
-		while(getline(ifile,value)){
-			success |= clientp::parse_csv(value.begin(), value.end(), k);
-		}
+		std::cout << "The file for the k values is ... " << k_values << std::endl;
 
+		while(getline(ifile,value)){
+			success |= clientp::parse_csv(value.begin(), value.end(), this->h_kData);
+		}
 		ifile.close();
 
 		// abort;
 		if (!success)
 			throw std::invalid_argument( "loading of k data failed" );
+		else
+			std::cout << "Successfully read k values " << std::endl;
 
 		//buffer for equations arriving on stdin & line num
 		string input;
@@ -43,10 +56,13 @@ namespace System {
 
 
 		//maximum elements in terms, in order to decide size of struct for node storage
-		max_elements=INT_MIN;
-		max_term_size=INT_MIN;
+		this->maxElements=INT_MIN;
+		this->maxTermSize=INT_MIN;
 
-		while(getline(cin, input)){
+//		while(getline(cin, input)){
+		std::cout << "The file for the equations is ... " << equations_file << std::endl;
+		ifile.open(equations_file,std::ifstream::in);
+		while(getline(ifile, input)){
 
 			unsigned count = 0;
 
@@ -105,10 +121,10 @@ namespace System {
 
 
 				map<T,T> tmp;
-				bool success = clientp::parse_constants(its->begin(), its->end(), constants);
-				assert(constants.size());
-				success |= clientp::parse_k_vals(its->begin(), its->end(), h_kInds);
-				assert(h_kInds.size());
+				bool success = clientp::parse_constants(its->begin(), its->end(),this->constants);
+				assert(this->constants.size());
+				success |= clientp::parse_k_vals(its->begin(), its->end(), this->h_kInds);
+				assert(this->h_kInds.size());
 				success |= clientp::parse_y_vals(its->begin(), its->end(), tmp);
 
 
@@ -117,45 +133,47 @@ namespace System {
 					sad_little_message(line_no,*its);
 
 				int sz = tmp.size();
-				max_term_size = (sz > max_term_size) ? sz : max_term_size;
+				this->maxTermSize = (sz > this->maxTermSize) ? sz : this->maxTermSize;
 
-				yFull.push_back(tmp);
+				this->yFull.push_back(tmp);
 			}
 
-			max_elements = (index > max_elements) ? index : max_elements;
+			this->maxElements = (index > this->maxElements) ? index : this->maxElements;
 			//tally terms in this equation
-			terms.push_back(index);
+			this->terms.push_back(index);
 
 			line_no++;
 		}
+		ifile.close();
 
 
-		assert ((yFull.size()==constants.size()) &&( h_kInds.size()==constants.size()));
+		assert ((this->yFull.size()==this->constants.size()) &&( this->h_kInds.size()==this->constants.size()));
+		std::cout << "Succesfully read equations" << std::endl;
 
 #ifdef __VERBOSE
 
 		int displacement =0;
 
-		for (int i=0; i<terms.size(); i++){
+		for (int i=0; i<this->terms.size(); i++){
 
 
 			cerr << "line : " << i << endl;
-			int j_size=terms[i];
+			int j_size=this->terms[i];
 
 			for (int j=0; j<j_size; j++){
 
 				int index = j+displacement;
-				for (map<float,float>::iterator itm = yFull[index].begin(); itm != yFull[index].end(); itm++){
+				for (typename std::map<T,T>::iterator itm = this->yFull[index].begin(); itm != this->yFull[index].end(); itm++){
 					cout << "term/y_ind/pwr: " << j << " " << itm->first << " " << itm->second << endl;
 
 				}
 			}
 
-			cerr << "kInds" << endl;
+			cerr << "k_inds" << endl;
 			for (int j=0; j<j_size; j++){
 
 				int index = j+displacement;
-				cerr << h_kInds[index] << " ";
+				cerr << this->h_kInds[index] << " ";
 			}
 			cerr << endl;
 
@@ -163,67 +181,128 @@ namespace System {
 			for (int j=0; j<j_size; j++){
 
 				int index = j+displacement;
-				cerr << constants[index] <<  " ";
+				cerr << this->constants[index] <<  " ";
 			}
 			cerr << endl;
 
-			displacement += terms[i];
+			displacement += this->terms[i];
 		}
 
 #endif
+		cerr << "max_term & max_term_size" << endl;
+		cerr << this->maxElements << " " << this->maxTermSize<< endl;
 
-		// Initialization of the function based on the data gathered
-		int num_leaves 	= constants.size();
-		int num_funcs 	= terms.size();
+		// LION-CODES: check_y
+		std::map<T,T> indices;
+
+		//check and possibly relabel y indices
+		for (typename std::vector<std::map<T,T> >::iterator it = this->yFull.begin(); it != this->yFull.end(); it++){
+
+			std::map<T,T> y_eqs = *it;
+
+			for (typename std::map<T,T>::iterator it1 = y_eqs.begin(); it1 != y_eqs.end(); it1++){
+				indices.insert(make_pair(it1->first,0));
+			}
+		}
+
+
+		int index=1; bool reorder =false;
+		for (typename map<T,T>::iterator it = indices.begin(); it != indices.end(); it++, index++){
+
+			it->second = index;
+
+			if (index != it->first){
+
+				cerr << "CAUTION; remapping y index " << it->first << " to " << index << endl;
+				reorder=true;
+			}
+		}
+
+		if (reorder){
+			for (typename std::vector<std::map<T,T> >::iterator it=this->yFull.begin(); it != this->yFull.end(); it++){
+
+
+				std::map<T,T> eq_term = *it; //= indices[it1->first];
+				std::map<T,T> new_term;
 		
-		EvalNode *tmp_nodes 		= new EvalNode [ num_leaves ];
+				for (typename std::map<T,T>::iterator it1=eq_term.begin(); it1!=eq_term.end(); it1++){
+					
+					T tmp = indices[it1->first];
+
+					new_term[tmp] = it1->second;
+				}
+				*it = new_term;
+			}
+		}
+		assert(this->maxTermSize<= 2);
+
+		this->nbEq = this->terms.size();
+
+
+		// LION-CODES: init_f
+		// Initialization of the function based on the data gathered
+		int num_leaves 	= this->constants.size();
+		int num_funcs 	= this->terms.size();
+		
+		EvalNode<T> *tmp_nodes 		= new EvalNode<T> [ num_leaves ];
 		int *tmp_terms 			= new int [ num_funcs ];
 		T *tmp_y	 		= new T [ num_funcs ];
+		int *tmp_offsets		= new int[num_funcs];
 
-		for (int i=0; i<num_funcs; i++)
-			tmp_terms[i] = terms[i];
+		tmp_offsets[0] = 0;
+		int off = terms[0];
 
 		for (int i=0; i<num_funcs; i++){
-			tmp_nodes[i].constant 	= constants[i];
-			tmp_nodes[i].kIdx 	= (int) h_kInds[i];
+			if (i>0) {
+				tmp_offsets[i] = off;
+				off += this->terms[i];
+			}
+			tmp_terms[i] = this->terms[i];
+		}	
+
+		for (int i=0; i<num_leaves;i++){
+			tmp_nodes[i].constant 	= this->constants[i];
+			tmp_nodes[i].kIdx 	= (int) this->h_kInds[i];
 			tmp_nodes[i].yIdx1	= 0;
 			tmp_nodes[i].yExp1	= 1.0;
-			tmp_nodes[i].yIdx2	= 0;
+			tmp_nodes[i].yIdx2	= -1;
 			tmp_nodes[i].yExp2	= 1.0;
 		
-			map<T,T> tmp = yFull[i];
+			std::map<T,T> tmp = yFull[i];
 
 			tmp_nodes[i].yIdx1 	= (int) tmp.begin()->first;
 			tmp_nodes[i].yExp1 	= tmp.begin()->second;
 		
 			if (tmp.size()>1){
-			tmp_nodes[i].yIdx2 	= (int) (tmp.begin()++)->first;
-			tmp_nodes[i].yExp2 	= (tmp.begin()++)->second;
-
+				typename std::map<T,T>::iterator it = tmp.begin();
+				it++;
+				tmp_nodes[i].yIdx2 	= (int)it->first;
+				tmp_nodes[i].yExp2 	= it->second;
 			}
 		}
 
 
 		//// Allocate device memory, and copy to device
 		// d_fNodes
-		cudaMalloc((void**)&d_fNodes, sizeof(EvalNode)*num_leaves);
+		cudaMalloc((void**)&this->d_fNodes, sizeof(EvalNode<T>)*num_leaves);
 		//cudaCheckError("malloc, f_nodes_dev");
-		cudaMemcpy(d_fNodes,tmp_nodes, sizeof(EvalNode)*num_leaves, cudaMemcpyHostToDevice);
+		cudaMemcpy(this->d_fNodes,tmp_nodes, sizeof(EvalNode<T>)*num_leaves, cudaMemcpyHostToDevice);
 		//cudaCheckError("memcpy, f_nodes_dev");
 		
 		// d_fTerms
-		cudaMalloc((void**)&d_fTerms, sizeof(int)*num_funcs);
+		cudaMalloc((void**)&this->d_fTerms, sizeof(int)*num_funcs);
 		//cudaCheckError("malloc, terms_dev");
-		cudaMemcpy(d_fTerms, tmp_terms, sizeof(int)*num_funcs, cudaMemcpyHostToDevice);
+		cudaMemcpy(this->d_fTerms, tmp_terms, sizeof(int)*num_funcs, cudaMemcpyHostToDevice);
 		//cudaCheckError("memcpy, terms_dev");
 		
-		/* \XXX TODO d_fOffsetTerms */
+		cudaMalloc((void**)&this->d_fOffsetTerms, sizeof(int)*num_funcs);
+		cudaMemcpy(this->d_fOffsetTerms, tmp_offsets, sizeof(int)*num_funcs, cudaMemcpyHostToDevice);
 
 
 		// d_kInds
-		int num_k = h_kInds.size();
-		d_kInds.resize(num_k);
-		thrust::copy(h_kInds.begin(),h_kInds.end(),d_kInds.begin());
+		int num_k = this->h_kData.size();
+		this->d_kData.resize(num_k);
+		thrust::copy(this->h_kData.begin(),this->h_kData.end(),this->d_kData.begin());
 
 		
 
@@ -240,9 +319,10 @@ namespace System {
 		//cudaCheckError("memcpy, y_dev");
 */
 
-		delete[] tmp_terms, tmp_nodes, tmp_y;
+		delete[] tmp_terms, tmp_nodes, tmp_y, tmp_offsets;
 
 	} // End of SystemFunctional() 
+
 
 	template<typename T>
 	__host__ void SystemFunctional<T>
@@ -250,16 +330,18 @@ namespace System {
 			cusp::array1d<T,cusp::device_memory> &F,
 			const cusp::array1d<T,cusp::device_memory> &Y) {
 			
-		// Size of Y
-		int nbEq = Y.size();
+		// Number of equations, and maximum numbers of terms
+		int nbEq = this->nbEq;
+		int mxTermsF = this->maxElements;
+
 
 		// Size of k array
-		int nbK = h_kInds.size();
+		int nbK = this->h_kData.size();
 		
 		// Get the device pointer
-		T *d_yp = thrust::raw_pointer_cast(Y.data());
+		const T *d_yp = thrust::raw_pointer_cast(Y.data());
 		T *d_fp = thrust::raw_pointer_cast(F.data());
-		T *d_kp = thrust::raw_pointer_cast(d_kInds.data());
+		T *d_kp = thrust::raw_pointer_cast(this->d_kData.data());
 
 
 		// Bind textures	
@@ -267,38 +349,58 @@ namespace System {
 		cudaBindTexture(0,yTex,d_yp,sizeof(T)*nbEq);
 
 
-		/*\XXX TODO Determine best nthreads and nblocks*/
-		k_eval<T> <<< 1,1 >>> (d_fp);
+		// Determine running configuration
+		dim3 blocks_f, threads_f;
+		blocks_f.x = nbEq;
+		threads_f.x = ( mxTermsF < 32 ) ? 32 : ceil( (T)mxTermsF / ((T)32.0))*32;
+		
+		std::cout << "Starting the functional evaluation routine ... " << std::endl;
+
+		// Run kernel
+		k_FunctionalEvaluate<T> <<< blocks_f,threads_f >>> (d_fp,this->d_fNodes,this->d_fTerms,this->d_fOffsetTerms,this->nbEq);
+		cudaThreadSynchronize();
+		cudaCheckError("Error from the evaluation of the functional");
 
 		cudaUnbindTexture(kTex);
 		cudaUnbindTexture(yTex);
 
 	} // End of SystemFunctional::evaluate()	
 
+
 	/*\XXX TODO Fix the name references (e.g. function_dev)*/
+	// Fields required for the kernel
+	// d_fTerms
+	// d_fNodes
 	template<typename T>
-	__global__ void SystemFunctional<T>
-		::k_evaluate(T *d_fp){
+	__global__ void 
+		k_FunctionalEvaluate(
+			T *d_fp,
+			const EvalNode<T> *d_fNodes,
+			const int *d_fTerms,
+			const int *d_fOffsetTerms,
+			int nbEq)	
+		{
 
 		__shared__ volatile T scratch[SHARED_BUF_SIZE];
 
-
-		int index = blockIdx.x*blockDim.x + threadIdx.x;
+		//could use constant mem here
+		int index = d_fOffsetTerms[blockIdx.x];
 		int terms_this_function = d_fTerms[blockIdx.x];
 
-		T fnt = 0.0f;
+		T fnt = (T)0.0;
 
 		if (threadIdx.x<terms_this_function){
-			EvalNode node = d_fNodes[index];
+			EvalNode<T> node = d_fNodes[index+threadIdx.x];
 
 			fnt		=  node.constant;
-			fnt		*= tex1Dfetch(kTex, node.k_index-1);
+			fnt		*= tex1Dfetch(kTex, node.kIdx-1);
 			//zero based indexing
-			fnt		*= pow(tex1Dfetch(yTex, node.y_index_1-1),node.y_exp_1);	
-			if (node.y_index_2 != -1)
-				fnt		*= pow(tex1Dfetch(yTex, node.y_index_2-1),node.y_exp_2);	
-
-
+			fnt		*= pow(tex1Dfetch(yTex, node.yIdx1-1),node.yExp1);	
+			if (node.yIdx2 != -1)
+				fnt		*= pow(tex1Dfetch(yTex, node.yIdx2-1),node.yExp2);	
+			printf("b : %i t: %i c: %f k: %i y1: %i e1: %f y2: %i e2: %f fnt : %f tr : %f y: %f\n",\
+			blockIdx.x,threadIdx.x,node.constant,node.kIdx,node.yIdx1,node.yExp1,node.yIdx2,\
+				node.yExp2, fnt, tex1Dfetch(kTex,node.kIdx-1), tex1Dfetch(yTex, node.yIdx1-1));
 		}
 
 		scratch[threadIdx.x] = fnt;
@@ -331,10 +433,25 @@ namespace System {
 		if (threadIdx.x < 4)		scratch [ threadIdx.x ] 	+= scratch [ threadIdx.x + 4 ];
 		if (threadIdx.x < 2)		scratch [ threadIdx.x ] 	+= scratch [ threadIdx.x + 2 ];
 		if (threadIdx.x < 1)		scratch [ threadIdx.x ] 	+= scratch [ threadIdx.x + 1 ];
-
+/*
+		if(threadIdx.x == 0 && blockIdx.x == 0) {
+		
+		//	printf("Number of equations = %d\n",nbEq);
+			for(int i=0;i<nbEq;i++) {
+				printf("NODE %d:\n",i);
+				printf("Cst = %f\n",(d_fNodes)[i].constant);
+				printf("kIdx = %f\n",d_fNodes[i].kIdx);
+				printf("yIdx1 = %f\n",d_fNodes[i].yIdx1);
+				printf("yIdx2 = %f\n",d_fNodes[i].yIdx2);
+				printf("yExp1 = %f\n",d_fNodes[i].yExp1);
+				printf("yExp2 = %f\n",d_fNodes[i].yExp2);
+			}
+		}	
+*/
 		//we solve J*delta = -f
 		if (threadIdx.x == 0){
 			d_fp[blockIdx.x] 	= -scratch[0];
+		//	d_fp[blockIdx.x] 	= scratch[0];
 		}
 	} // End of SystemFunctional::k_evaluate()
 }	

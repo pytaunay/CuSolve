@@ -26,6 +26,7 @@ namespace System {
 	class SystemFunctional {
 		protected:
 			// Host 
+			std::vector<T> h_kData; /*!< k parameter data to load */
 			std::vector<T> h_kInds; /*!< k indices for equations */ 
 			std::vector<T> constants; /*!< all constant and sign data */
 			std::vector< map<T,T> > yFull; /*!< all y data (yindex(key) & power(value)) */
@@ -34,19 +35,21 @@ namespace System {
 			int maxElements; /*!< Maximum number of terms in the equation evaluation */
 			int maxTermSize; /*!< Maximum number of elements encountered in equation term, for node size */
 
+			int nbEq; /*!< Number of equations parsed that were non zero*/
+
 			// Device wrappers 
-			EvalNode *d_fNodes;
-			int *d_fTerms;
-			int *d_fOffsetTerms;
-			cusp::array1d<T,cusp::device_memory> d_kInds;
+			EvalNode<T> *d_fNodes; /*!< Nodes in the polynomial tree representation; allocated on the device*/
+			int *d_fTerms; /*!< Number of terms per equation evaluation; allocated on the device*/
+			int *d_fOffsetTerms; /*!< Offset terms; allocated on the device*/
+			cusp::array1d<T,cusp::device_memory> d_kData; /*!< k parameter data loaded; allocated on the device*/
 
 		public:
 			/*!\brief Constructor with filename
 			 *
 			 *
 			 * @param[in] filename location of the k data
-			 */ 
-			SystemFunctional(string filename); 
+			 */
+			SystemFunctional(char *k_values, char *equations_file); 
 
 			/*!\brief Evaluation of the system functional, based on the data stored in the device memory
 			 *
@@ -58,14 +61,54 @@ namespace System {
 					cusp::array1d<T,cusp::device_memory> &F,
 					const cusp::array1d<T,cusp::device_memory> &Y);
 
-		private:
-			/*!\brief Kernel for the evaluation of the system functional
+
+			/*!\brief k Indices getter
 			 *
 			 *
-			 * @param[in] d_fp device function pointer, which is obtained from a raw pointer cast of a cusp array1d
-			 */ 
-			__global__ void k_evaluate(T *d_fp); 
+			 * @param[out] constant reference to h_kInds
+			 */
+			__host__ std::vector<T> const & getkInds() const {	
+				return h_kInds;
+			}	
+
+			/*!\brief constants getter
+			 *
+			 *
+			 * @param[out] constant reference to constant
+			 */
+			__host__ std::vector<T> const & getConstants() const {	
+				return constants;
+			}	
+
+			/*!\brief yFull getter
+			 *
+			 *
+			 * @param[out] constant reference to yFull
+			 */
+			__host__ std::vector< std::map<T,T> > const & getyFull() const {
+				return yFull;
+			}	
+			/*\brief terms getter
+			 *
+			 *
+			 * @param[out] constant reference to terms
+			 */
+			__host__ std::vector<int> const & getTerms() const {
+				return terms;
+			}	
+
+
+		public:
+			__device__ void evaluateImplementation(T *d_fp); 
 	};
+	
+	/*!\brief Kernel for the evaluation of the system functional
+	 *
+	 *
+	 * @param[in] d_fp device function pointer, which is obtained from a raw pointer cast of a cusp array1d
+	 */ 
+	template<typename T>
+	__global__ void k_FunctionalEvaluate(T *d_fp,const EvalNode<T> *d_fNodes, const int *d_fTerms,const int *d_fOffsetTerms,int nbEq); 
 } // end of System	
 
 #include <equation_system/detail/systemfunctional.inl>

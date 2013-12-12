@@ -10,7 +10,6 @@
 //// STD
 #include <vector>
 
-
 //// CUDA
 #include <cuda.h>
 
@@ -37,6 +36,18 @@ namespace System {
 			// Host
 			std::vector<int> idxI;
 			std::vector<int> idxJ;
+			
+			// Inherited attributes
+		//	std::vector<int> terms;	
+		//	std::vector<T> kInds;
+		//	std::vector<T>  constants;
+		//	std::vector< std::map<T,T> > jFull;
+		//	int maxElements;
+
+			// Device wrappers
+		//	EvalNode<T> *d_jNodes;
+		//	int *d_jTerms;
+		//	int *d_jOffsetTerms;	
 
 		public:	
 			/*! \brief Default constructor
@@ -67,18 +78,30 @@ namespace System {
 			 * \todo Fix textures 
 			 */
 			__host__ void evaluate(
-					cusp::coo_matrix<T,cusp::device_memory> &J,
+					cusp::coo_matrix<int,T,cusp::device_memory> &J,
 					const cusp::array1d<T,cusp::device_memory> &Y);
 
-		private:
-			/*! \brief Kernel  for the Jacobian evaluation
+			
+			/*! \brief Get terms
 			 *
 			 *
 			 */
-			__global__ void k_evaluate(void);
+			__host__ std::vector<int> const & getTerms() const {
+				return this->terms;
+			}	
+
+
+		private:
+			__device__ void implementation(T *d_Jp);
 
 	};		
-}	
+	/*! \brief Kernel  for the Jacobian evaluation
+	 *
+	 *
+	 */
+	template<typename T>
+	__global__ void J_evaluate(T *d_Jp);
+} // end of namespace System	
 
-#include <detail/coojacobian.inl>
+#include <equation_system/detail/coojacobian.inl>
 	

@@ -1,3 +1,5 @@
+#pragma once
+
 #include <boost/config/warning_disable.hpp>
 #include <boost/bind.hpp>
 #include <boost/spirit/include/qi.hpp>
@@ -13,13 +15,11 @@
 #include <stdexcept>
 
 
-#ifndef __CLIENTP_HPP
-#define __CLIENTP_HPP
+/*\XXX TODO: Do the double implementation !*/
 
+namespace System {
 using namespace std;
 using namespace BOOST_SPIRIT_CLASSIC_NS;
-
-
 namespace clientp
 {
 
@@ -54,23 +54,22 @@ namespace clientp
 	using phoenix::push_back;
 
 
-
 	template <typename Iterator>
 		bool parse_csv(Iterator first, Iterator last, std::vector<float>& k)
 		{
-
 			bool r = phrase_parse(first, last,
 
 					//  grammar for csv files
 					(
-					 *(float_[push_back(phoenix::ref(k), _1)] >> ',' | float_[push_back(phoenix::ref(k),_1)])
+					 //*(float_ >> ',' | float_ [push_back(phoenix::ref(k),_1)])
+					 *(float_ [push_back(phoenix::ref(k),_1)])
 					)
 					,
 					space);
 
 			return r;
-		}
 
+		}
 
 
 	template <typename Iterator>
@@ -88,7 +87,6 @@ namespace clientp
 
 			return r;
 		}
-
 
 	template <typename Iterator>
 		bool parse_constants(Iterator first, Iterator last, std::vector<float>& v)
@@ -125,8 +123,6 @@ namespace clientp
 
 			return r;
 		}
-
-
+}
 }
 
-#endif
