@@ -27,6 +27,7 @@ namespace System {
 			std::vector< std::map<T,T> > jFull;
 
 			int maxElements;
+			int nbElem; /*!< Number of stored elements in the matrix */
 
 			// Device wrappers
 			EvalNode<T> *d_jNodes;

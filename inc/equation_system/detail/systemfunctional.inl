@@ -398,9 +398,9 @@ namespace System {
 			fnt		*= pow(tex1Dfetch(yTex, node.yIdx1-1),node.yExp1);	
 			if (node.yIdx2 != -1)
 				fnt		*= pow(tex1Dfetch(yTex, node.yIdx2-1),node.yExp2);	
-			printf("b : %i t: %i c: %f k: %i y1: %i e1: %f y2: %i e2: %f fnt : %f tr : %f y: %f\n",\
-			blockIdx.x,threadIdx.x,node.constant,node.kIdx,node.yIdx1,node.yExp1,node.yIdx2,\
-				node.yExp2, fnt, tex1Dfetch(kTex,node.kIdx-1), tex1Dfetch(yTex, node.yIdx1-1));
+	//		printf("b : %i t: %i c: %f k: %i y1: %i e1: %f y2: %i e2: %f fnt : %f tr : %f y: %f\n",\
+	//		blockIdx.x,threadIdx.x,node.constant,node.kIdx,node.yIdx1,node.yExp1,node.yIdx2,\
+	//			node.yExp2, fnt, tex1Dfetch(kTex,node.kIdx-1), tex1Dfetch(yTex, node.yIdx1-1));
 		}
 
 		scratch[threadIdx.x] = fnt;

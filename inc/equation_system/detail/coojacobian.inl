@@ -23,6 +23,11 @@
 #include <equation_system/systemjacobian.h>
 #include <equation_system/evalnode.h>
 
+/*\XXX TODO: Texture representation for doubles*/
+texture<float,1,cudaReadModeElementType> yTexJ;
+texture<float,1,cudaReadModeElementType> kTexJ;
+
+#define SHARED_BUF_SIZE 256 
 
 namespace System {
 	
@@ -125,6 +130,7 @@ namespace System {
 		assert(this->terms.size()==this->idxJ.size());
 		//
 		//
+		this->nbElem = this->idxI.size();
 
 	#ifdef __VERBOSE
 
@@ -170,9 +176,11 @@ namespace System {
 	#endif
 
 	
-			// Jacobian
+			// LION-CODES: init.cpp
+			// Number of leaves in the Jacobian matrix
 			int num_leaves         = this->constants.size();
-			int num_funcs         = terms_F.size();
+			// Number of equations representing the Jacobian (i.e. number of entries in the Jacobian)
+			int num_funcs         = this->terms.size();
 
 			EvalNode<T>* tmp_nodes         = new EvalNode<T>[ num_leaves ];
 			int * tmp_terms                 = new int[ num_funcs ];
@@ -212,16 +220,20 @@ namespace System {
 				}
 			}
 			cudaMalloc((void**)&this->d_jNodes,sizeof(EvalNode<T>)*num_leaves);
-		//	cudaCheckError("malloc, jac_nodes_dev");
+			cudaCheckError("malloc, d_jNodes");
 			cudaMemcpy(this->d_jNodes,tmp_nodes,sizeof(EvalNode<T>)*num_leaves, cudaMemcpyHostToDevice);
-			//cudaCheckError("memcpy, jac_nodes_dev");
+			cudaCheckError("memcpy, d_jNodes");
 
 			cudaMalloc((void**)&this->d_jTerms, sizeof(int)*num_funcs);
+			cudaCheckError("malloc, d_jTerms");
+
 			cudaMalloc((void**)&this->d_jOffsetTerms, sizeof(int)*num_funcs);
-			//cudaCheckError("malloc, terms_jac_dev");
+			cudaCheckError("malloc, d_jOffsetTerms");
+
 			cudaMemcpy(this->d_jTerms, tmp_terms, sizeof(int)*num_funcs, cudaMemcpyHostToDevice);
+			cudaCheckError("memcpy, d_jTerms");
 			cudaMemcpy(this->d_jOffsetTerms, tmp_offsets, sizeof(int)*num_funcs, cudaMemcpyHostToDevice);
-			//cudaCheckError("memcpy, terms_jac_dev");
+			cudaCheckError("memcpy, d_jOffsetTerms");
 
 
 			delete[] tmp_terms, tmp_nodes, tmp_offsets;
@@ -230,90 +242,115 @@ namespace System {
 
 	template<typename T>
 	__host__ void cooJacobian<T>
-				::evaluate(
-					cusp::coo_matrix<int,T,cusp::device_memory> &J,
-					const cusp::array1d<T,cusp::device_memory> &Y) {
+			::evaluate(cusp::coo_matrix<int,T,cusp::device_memory> &J,
+					const cusp::array1d<T,cusp::device_memory> &Y,
+					const cusp::array1d<T,cusp::device_memory> &d_kData) {
+
+			int nbJac = this->nbElem;
+			int mxTermsJ = this->maxElements;
+
+			// Get the pointer to the data
+			// J.values = array1d inside the coo_matrix
+			T *d_Jp = thrust::raw_pointer_cast(J.values.data());
+			const T *d_yp = thrust::raw_pointer_cast(Y.data());
+			const T *d_kp = thrust::raw_pointer_cast(d_kData.data());
+			
+			// Bind textures
+			cudaBindTexture(0,kTexJ,d_kp,sizeof(T)*d_kData.size());
+			cudaBindTexture(0,yTexJ,d_yp,sizeof(T)*Y.size());
+			cudaThreadSynchronize();
+			cudaCheckError("Error from the evaluation of the Jacobian: texture binding");
+
+			// Set up grid configuration
+			dim3 blocks_j, threads_j;
+			blocks_j.x = nbJac;
+			threads_j.x = (mxTermsJ< 32) ? 32 : ceil((T)mxTermsJ/((T)32.0))*32;
+
+			std::cout << "Starting the Jacobian evaluation routine on the GPU with NTH=" << threads_j.x << " and NBL=" << blocks_j.x << std::endl;
+			k_JacobianEvaluate<T> <<<blocks_j,threads_j>>> (d_Jp,this->d_jNodes,this->d_jTerms,this->d_jOffsetTerms);
+			cudaThreadSynchronize();
+			cudaCheckError("Error from the evaluation of the Jacobian: kernel call");
+
+			cudaUnbindTexture(kTexJ);
+			cudaUnbindTexture(yTexJ);
+
+	}
+
 		
-		// Get the pointer to the data
-		// J.values = array1d inside the coo_matrix
-		T *d_Jp = thrust::raw_pointer_cast(J.values.data());
 
-
-		/*\XXX TODO: Determine nthreads, nblocks*/
-		/*\XXX TODO: Fix textures*/
-	//	k_evaluate<<<1,1>>>(d_Jp);
-
-	} // End of cooJacobian::evaluate
 
 	template<typename T>
-	__device__ void cooJacobian<T> 
-				::implementation(T *d_Jp) {
-			__shared__ volatile T scratch[SHARED_BUF_SIZE];
+	__global__ void k_JacobianEvaluate(
+					T *d_Jp,
+					const EvalNode<T> *d_jNodes,
+					const int *d_jTerms,
+					const int *d_jOffsetTerms
+					) {
 
-			// Could use constant mem here
-			int index = this->d_jOffsetTerms[blockIdx.x];
-			int terms_this_function = this->d_jTerms[blockIdx.x];
-			T fnt = 0.0f;
+		__shared__ volatile T scratch[256];
+	//	__shared__ T scratch[256];
 
-			if (threadIdx.x<terms_this_function){
+		// Could use constant mem here
+		int index = d_jOffsetTerms[blockIdx.x];
+		int terms_this_function = d_jTerms[blockIdx.x];
+		T fnt = (T)0.0;
 
-				EvalNode<T> node = this->d_jNodes[index+threadIdx.x];
 
-				fnt                = node.constant;
-				int K_index        = (node.k_index-1);
-				fnt                *= tex1Dfetch(kTex, K_index);
-				//zero based indexing
-				if (node.yExp1 != 0)
-					fnt                *= powf(tex1Dfetch(yTex, node.yIdx1-1),node.yExp1);        
-				if (node.yIdx2 != -1)
-					fnt                *= powf(tex1Dfetch(yTex, node.yIdx2-1),node.yExp2);        
+		if (threadIdx.x<terms_this_function){
 
-				//if (blockIdx.x==0) printf("b : %i t: %i c: %f k: %i y1: %i e1: %f y2: %i e2: %f fnt : %f tr : %f y: %f\n",\
-				blockIdx.x,threadIdx.x,node.constant,node.k_index,node.y_index_1,node.y_exp_1,node.y_index_2,\
-					node.y_exp_2, fnt, tex1Dfetch(k_tex,node.k_index-1), tex1Dfetch(y_tex, node.y_index_1-1));
+			EvalNode<T> node = d_jNodes[index+threadIdx.x];
 
+			fnt                = node.constant;
+			int K_index        = (node.kIdx-1);
+			fnt                *= tex1Dfetch(kTexJ, K_index);
+			//zero based indexing
+			if (node.yExp1 != 0)
+				fnt                *= pow(tex1Dfetch(yTexJ, node.yIdx1-1),node.yExp1);        
+			if (node.yIdx2 != -1)
+				fnt                *= pow(tex1Dfetch(yTexJ, node.yIdx2-1),node.yExp2);        
+	
+	//		printf("b : %i t: %i c: %f k: %i y1: %i e1: %f y2: %i e2: %f fnt : %f tr : %f y: %f\n",\
+	//		blockIdx.x,threadIdx.x,node.constant,node.kIdx,node.yIdx1,node.yExp1,node.yIdx2,\
+	//			node.yExp2, fnt, tex1Dfetch(kTexJ,node.kIdx-1), tex1Dfetch(yTexJ, node.yIdx1-1));
+
+		}
+
+		scratch[threadIdx.x] = fnt;
+
+		__syncthreads();
+
+		if (blockDim.x >= 256){
+			if (threadIdx.x < 128){
+				scratch [ threadIdx.x ]         += scratch [ threadIdx.x + 128 ];
 			}
-
-			scratch[threadIdx.x] = fnt;
-
 			__syncthreads();
+		}
 
-			if (blockDim.x >= 256){
-				if (threadIdx.x < 128){
-					scratch [ threadIdx.x ]         += scratch [ threadIdx.x + 128 ];
-				}
-				__syncthreads();
+		if (blockDim.x >= 128){
+			if (threadIdx.x < 64){
+				scratch [ threadIdx.x ]         += scratch [ threadIdx.x + 64 ];
 			}
+			__syncthreads();
+		}
 
-			if (blockDim.x >= 128){
-				if (threadIdx.x < 64){
-					scratch [ threadIdx.x ]         += scratch [ threadIdx.x + 64 ];
-				}
-				__syncthreads();
+		if (blockDim.x >= 64){
+			if (threadIdx.x < 32){
+				scratch [ threadIdx.x ]         += scratch [ threadIdx.x + 32 ];
 			}
-
-			if (blockDim.x >= 64){
-				if (threadIdx.x < 32){
-					scratch [ threadIdx.x ]         += scratch [ threadIdx.x + 32 ];
-				}
-			}
+		}
 
 
-			if (threadIdx.x < 16)                 scratch [ threadIdx.x ]         += scratch [ threadIdx.x + 16 ];
-			if (threadIdx.x < 8)                scratch [ threadIdx.x ]         += scratch [ threadIdx.x + 8 ];
-			if (threadIdx.x < 4)                scratch [ threadIdx.x ]         += scratch [ threadIdx.x + 4 ];
-			if (threadIdx.x < 2)                scratch [ threadIdx.x ]         += scratch [ threadIdx.x + 2 ];
-			if (threadIdx.x < 1)                scratch [ threadIdx.x ]         += scratch [ threadIdx.x + 1 ];
+		if (threadIdx.x < 16)               scratch [ threadIdx.x ]         += scratch [ threadIdx.x + 16 ];
+		if (threadIdx.x < 8)                scratch [ threadIdx.x ]         += scratch [ threadIdx.x + 8 ];
+		if (threadIdx.x < 4)                scratch [ threadIdx.x ]         += scratch [ threadIdx.x + 4 ];
+		if (threadIdx.x < 2)                scratch [ threadIdx.x ]         += scratch [ threadIdx.x + 2 ];
+		if (threadIdx.x < 1)                scratch [ threadIdx.x ]         += scratch [ threadIdx.x + 1 ];
 
 
 
-			if (threadIdx.x == 0)
-				d_Jp[blockIdx.x]         = scratch[0];
-		}		
+		if (threadIdx.x == 0)
+			d_Jp[blockIdx.x]         = scratch[0];
+	}		
 
-	template<typename T>
-	__global__ void J_evaluate(T *d_Jp) {
-		cooJacobian<T>::implementation(d_Jp);
-	} // End of cooJacobian::k_evaluate		
 } // End of namespace System		
 

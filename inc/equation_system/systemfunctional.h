@@ -95,6 +95,10 @@ namespace System {
 			 */
 			__host__ std::vector<int> const & getTerms() const {
 				return terms;
+			} 	
+
+			__host__ cusp::array1d<T,cusp::device_memory> const & getkData() const {
+				return d_kData;
 			}	
 
 

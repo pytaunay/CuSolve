@@ -79,7 +79,8 @@ namespace System {
 			 */
 			__host__ void evaluate(
 					cusp::coo_matrix<int,T,cusp::device_memory> &J,
-					const cusp::array1d<T,cusp::device_memory> &Y);
+					const cusp::array1d<T,cusp::device_memory> &Y,
+					const cusp::array1d<T,cusp::device_memory> &d_kData);
 
 			
 			/*! \brief Get terms
@@ -90,18 +91,25 @@ namespace System {
 				return this->terms;
 			}	
 
-
-		private:
-			__device__ void implementation(T *d_Jp);
-
+			__host__ std::vector<int> const & getIdxI() const {
+				return this->idxI;
+			}	
+			__host__ std::vector<int> const & getIdxJ() const {
+				return this->idxJ;
+			}	
 	};		
 	/*! \brief Kernel  for the Jacobian evaluation
 	 *
 	 *
 	 */
 	template<typename T>
-	__global__ void J_evaluate(T *d_Jp);
-} // end of namespace System	
+	__global__ void k_JacobianEvaluate(
+					T *d_Jp,
+					const EvalNode<T> *d_jNodes,
+					const int *d_jTerms,
+					const int *d_jOffsetTerms
+					);
+} // end of namespace System
 
 #include <equation_system/detail/coojacobian.inl>
 	
