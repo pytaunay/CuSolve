@@ -11,6 +11,11 @@ namespace NumericalSolver {
 	
 	template<typename T>
 	class LinearSolver {
+		public:
+			virtual void compute(
+					cusp::coo_matrix<int,T,cusp::device_memory> &A,
+					cusp::array1d<T,cusp::device_memory> &b,
+					cusp::array1d<T,cusp::device_memory> &x) = 0;
 	};	
 }
 

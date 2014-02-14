@@ -80,7 +80,7 @@ namespace System {
 			__host__ void evaluate(
 					cusp::coo_matrix<int,T,cusp::device_memory> &J,
 					const cusp::array1d<T,cusp::device_memory> &Y,
-					const cusp::array1d<T,cusp::device_memory> &d_kData);
+					const cusp::array1d<T,cusp::device_memory> &d_kData) const;
 
 			
 			/*! \brief Get terms

@@ -328,7 +328,7 @@ namespace System {
 	__host__ void SystemFunctional<T>
 		::evaluate(
 			cusp::array1d<T,cusp::device_memory> &F,
-			const cusp::array1d<T,cusp::device_memory> &Y) {
+			const cusp::array1d<T,cusp::device_memory> &Y) const {
 			
 		// Number of equations, and maximum numbers of terms
 		int nbEq = this->nbEq;
@@ -341,7 +341,7 @@ namespace System {
 		// Get the device pointer
 		const T *d_yp = thrust::raw_pointer_cast(Y.data());
 		T *d_fp = thrust::raw_pointer_cast(F.data());
-		T *d_kp = thrust::raw_pointer_cast(this->d_kData.data());
+		T *d_kp = thrust::raw_pointer_cast(const_cast<SystemFunctional<T>*>(this)->d_kData.data());
 
 
 		// Bind textures	

@@ -23,13 +23,13 @@ namespace NumericalSolver {
 		void GMRES<T>::
 			compute(
 				//const cusp::detail::matrix_base<int,T,cusp::device_memory,cusp::known_format> &A,
-				const cusp::coo_matrix<int,T,cusp::device_memory> &A,
-				const cusp::array1d<T,cusp::device_memory>  &b,
+				cusp::coo_matrix<int,T,cusp::device_memory> &A,
+				cusp::array1d<T,cusp::device_memory>  &b,
 				cusp::array1d<T,cusp::device_memory> &x) {
 
 			cusp::verbose_monitor<T> monitor(b,this->maxIter,this->relTol,this->absTol);
 			std::cout << "INFO Starting GMRES..." << std::endl;
-		//	cusp::krylov::gmres(A,x,b,this->restartIter,monitor);
+			cusp::krylov::gmres(A,x,b,this->restartIter,monitor);
 		}	
 
 		template<typename T>

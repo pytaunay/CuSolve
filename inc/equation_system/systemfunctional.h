@@ -59,7 +59,7 @@ namespace System {
 			 */ 
 			__host__ void evaluate(
 					cusp::array1d<T,cusp::device_memory> &F,
-					const cusp::array1d<T,cusp::device_memory> &Y);
+					const cusp::array1d<T,cusp::device_memory> &Y) const;
 
 
 			/*!\brief k Indices getter

@@ -18,12 +18,13 @@
 #include <equation_system/systemjacobian.h>
 #include <equation_system/systemfunctional.h>
 
+#include <equation_system/coojacobian.h>
+
 // Numerical solvers
 #include <numerical_solvers/nonlinear/nonlinearsolver.h>
 #include <numerical_solvers/linear/linearsolver.h>
 
 using namespace System;
-
 
 #include <iostream>
 
@@ -87,7 +88,17 @@ namespace NumericalSolver {
 			 * @param[in] d the result of J*d = -f
 			 * @param[inout] Y the solution
 			 */
+			void compute(const SystemFunctional<T> &F,
+				const cooJacobian<T> &J,
+				cusp::array1d<T,cusp::device_memory> &Fv,
+				cusp::coo_matrix<int,T,cusp::device_memory> &Jv,
+				cusp::array1d<T,cusp::device_memory> &d,
+				cusp::array1d<T,cusp::device_memory> &Y
+				);
+				
 			
+
+			/*
 			void compute(
 				const SystemFunctional<T> &F,
 				const SystemJacobian<T> &J,
@@ -96,6 +107,7 @@ namespace NumericalSolver {
 				cusp::array1d<T,cusp::device_memory> &d,
 				cusp::array1d<T,cusp::device_memory> &Y
 				); 
+				*/
 	};
 }	
 

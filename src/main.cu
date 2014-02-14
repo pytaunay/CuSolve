@@ -28,7 +28,7 @@ int main() {
 	cusp::array1d<float,cusp::device_memory> X;
 	cusp::coo_matrix<int,float,cusp::device_memory> A; 
 
-	myLinearSolver->compute(A,b,X);
+//	myLinearSolver->compute(A,b,X);
 
 
 
@@ -63,8 +63,11 @@ int main() {
 
 	// Set up numerical arrays
 	cusp::array1d<float,cusp::device_memory> Fv(nEq,0);
-	cusp::array1d<float,cusp::device_memory> Y(nEq,1);
+	cusp::array1d<float,cusp::device_memory> Y(nEq,0.01);
+	cusp::array1d<float,cusp::device_memory> d(nEq,1);
+
 	cusp::coo_matrix<int,float,cusp::device_memory> Jv(nEq,nEq,nJac);
+
 	thrust::copy(myCooJacobian->getIdxI().begin(),
 			myCooJacobian->getIdxI().end(), 
 			Jv.row_indices.begin());
@@ -73,14 +76,18 @@ int main() {
 			Jv.column_indices.begin());
 
 
-	myFunctional->evaluate(Fv,Y);
-	myCooJacobian->evaluate(Jv,Y,myFunctional->getkData());
+//	myFunctional->evaluate(Fv,Y);
+//	myCooJacobian->evaluate(Jv,Y,myFunctional->getkData());
 		
-	cusp::print(Jv);
+//	cusp::print(Jv);
 
 	    // print contents of D
 //        for(int i = 0; i < Y.size(); i++)
 //	        std::cout << "F[" << i << "]= " << Fv[i] << std::endl;
+
+
+
+	myNonLinearSolver->compute(*myFunctional,*myCooJacobian,Fv,Jv,d,Y);
 
 
 	delete myCooJacobian;
