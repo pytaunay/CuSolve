@@ -19,6 +19,7 @@
 #include <cusp/detail/matrix_base.h>
 #include <cusp/array1d.h>
 #include <cusp/format.h>
+#include <cusp/print.h>
 
 //// CuSolve
 // Equation system
@@ -81,28 +82,48 @@ namespace NumericalSolver {
 				F.evaluate(Fv,Y);
 				J.evaluate(Jv,Y,F.getkData());
 
+				T scale = (T)10.0;
+				cusp::array1d<T,cusp::device_memory> tmp(F.getTerms().size(),(T)(1.0)/scale);
+
+
 				for(int N = 0; N < this->maxIter; N++) {
 					// Solve J*d = -F
 					this->lsolve->compute(Jv,d,Fv);	
 
-					// Update Y from delta: Y = Y + d
+					// Update Y from delta: Y = Y + d/scale
+					// Apply scaling to d, in place
+					thrust::transform(	d.begin(),
+								d.end(),
+								tmp.begin(),
+								d.begin(),
+								thrust::multiplies<T>());
+
+					// Y = Y+d/s
 					thrust::transform(	Y.begin(), 
 								Y.end(), 
 								d.begin(), 
 								Y.begin(), 
 								thrust::plus<T>()); 
-					
-					// Calculate the tolerance
-					tol = thrust::transform_reduce(d.begin(),d.end(),square<T>(),(T)0.0,thrust::plus<T>());
-					tol = std::sqrt(tol);
+								
+					// Calculate the tolerance: tol = scale*sqrt(sum( d*d ))
+					F.evaluate(Fv,Y);
+					tol = thrust::transform_reduce(Fv.begin(),Fv.end(),square<T>(),(T)0.0,thrust::plus<T>());
+//					tol = scale*std::sqrt(tol);
 					std::cout << "Iteration " << N+1 << "\t Tolerance: " << tol << endl;
 
 					// Break if tolerance is attained
-					if( tol < this->tol ) 
+					if( tol < this->tol ) {
+						std::cout << "INFO Newton-Raphson converged ! Tolerance " << tol << " < " << this->tol << std::endl;
+						std::cout << "INFO Solution " << std::endl;
+						cusp::print(Y);
+						std::cout << "INFO Final functional" << std::endl;
+						F.evaluate(Fv,Y);
+						cusp::print(Fv);
 						break;
+					}	
 					
 					// Update the Jacobian and the functional
-					F.evaluate(Fv,Y);
+//					F.evaluate(Fv,Y);
 					J.evaluate(Jv,Y,F.getkData());
 				}	
 			} // End of NewtonRaphson :: compute

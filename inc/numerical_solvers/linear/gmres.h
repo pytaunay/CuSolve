@@ -42,9 +42,9 @@ namespace NumericalSolver {
 
 		public:
 			GMRES() {
-				this->restartIter = 50;
+				this->restartIter = 500;
 				this->maxIter = 5000;
-				this->relTol = (T)1e-6;
+				this->relTol = (T)1e-8;
 				this->absTol = (T)1e-8;
 			}	
 

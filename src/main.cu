@@ -1,4 +1,5 @@
 #include <iostream>
+#include <ctime>
 
 #include <cuda.h>
 
@@ -36,7 +37,7 @@ int main() {
 	// Create a linear solver
 	GMRES<float> *myLinearSolverD = new GMRES<float>();
 	// Create a non linear solver
-	NewtonRaphson<float> *myNonLinearSolver = new NewtonRaphson<float>(myLinearSolverD,100,1e-5);
+	NewtonRaphson<float> *myNonLinearSolver = new NewtonRaphson<float>(myLinearSolverD,500,1e-5);
 	
 	// Set up the analytical forms
 
@@ -63,8 +64,20 @@ int main() {
 
 	// Set up numerical arrays
 	cusp::array1d<float,cusp::device_memory> Fv(nEq,0);
-	cusp::array1d<float,cusp::device_memory> Y(nEq,0.01);
-	cusp::array1d<float,cusp::device_memory> d(nEq,1);
+	cusp::array1d<float,cusp::device_memory> Y(nEq,1);
+	cusp::array1d<float,cusp::device_memory> d(nEq,0);
+	cusp::array1d<float,cusp::host_memory> Yh(nEq,0);
+
+	srand(1024);
+//	srand(time(NULL));
+	for (int i=0; i<nEq; i++)
+		Yh[i] = 0.00001f*(float)rand() / (float) RAND_MAX;
+
+	thrust::copy(Yh.begin(),Yh.end(),Y.begin());
+
+	printf("\n");
+	cusp::print(Y);
+	printf("\n");
 
 	cusp::coo_matrix<int,float,cusp::device_memory> Jv(nEq,nEq,nJac);
 
@@ -95,10 +108,6 @@ int main() {
 	delete myNonLinearSolver;
 	delete myLinearSolverD;
 	delete myLinearSolver;
-
-
-	
-
 
 	return 0;
 }
