@@ -1,5 +1,12 @@
-#ifndef _ODESOLVERBASE_HPP_
-#define _ODESOLVERBASE_HPP_
+/**
+ * @file odesolver.h
+ * @author Pierre-Yves Taunay (py.taunay@psu.edu)
+ * @date March, 2014
+ * @brief Abstract representation of common classes of ODE solvers
+ *
+ */
+
+#pragma once
 
 namespace NumericalSolver {
 	
@@ -31,6 +38,4 @@ namespace NumericalSolver {
 	class RKODESolver : public ODESolver {};
 
 }
-
-#endif
 
