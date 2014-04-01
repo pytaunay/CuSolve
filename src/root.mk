@@ -1,6 +1,6 @@
 SOURCES := main.cu
 
-CXXFLAGS := -O3 -arch sm_30 -D__VERBOSE 
+CXXFLAGS := -g -G -arch sm_30 -D__VERBOSE 
 #CXXFLAGS := -O3 -g -G -arch sm_30 -D__VERBOSE 
 #CXXFLAGS := -O0 -g -G 
 
@@ -8,5 +8,5 @@ CXXFLAGS := -O3 -arch sm_30 -D__VERBOSE
 
 SRC_INCDIRS := ../inc/
 
-LDFLAGS := -O3 -arch sm_30 -D__VERBOSE
+LDFLAGS := -g -G -arch sm_30 -D__VERBOSE -L/gpfs/apps/cuda-rhel6/cuda/5.5/lib64 -lcublas
 #LDFLAGS := -O3 -g -G -arch sm_30 -D__VERBOSE

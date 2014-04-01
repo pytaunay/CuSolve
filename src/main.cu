@@ -16,6 +16,8 @@
 #include <equation_system/systemfunctional.h>
 #include <equation_system/coojacobian.h>
 
+#include <numerical_solvers/ode/bdfsolver.h>
+
 using namespace NumericalSolver;
 
 int main() {
@@ -100,7 +102,10 @@ int main() {
 
 
 
-	myNonLinearSolver->compute(*myFunctional,*myCooJacobian,Fv,Jv,d,Y);
+//	myNonLinearSolver->compute(*myFunctional,*myCooJacobian,Fv,Jv,d,Y);
+
+	BDFsolver<float> *myBdfSolver = new BDFsolver<float>();	
+	myBdfSolver->compute(*myFunctional,*myCooJacobian,Fv,Jv,d,Y);
 
 
 	delete myCooJacobian;
