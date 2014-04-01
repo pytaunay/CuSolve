@@ -72,6 +72,10 @@ namespace NumericalSolver {
 			cusp::array1d<T,cusp::device_memory> &d,
 			cusp::array1d<T,cusp::device_memory> &Y
 		) {
+			// Thrust device pointers for convenience
+			thrust::device_ptr<T> dptr_dtSum = thrust::device_pointer_cast(d_dtSum);
+			thrust::device_ptr<T> dptr_xiInv = thrust::device_pointer_cast(d_xiInv);
+			thrust::device_ptr<T> dptr_pdt = thrust::device_pointer_cast(d_pdt);
 
 			// Reset and check weights
 			// Check for too many time steps
@@ -115,8 +119,6 @@ namespace NumericalSolver {
 				}	
 			}	
 
-			thrust::device_ptr<T> dptr_dtSum = thrust::device_pointer_cast(d_dtSum);
-			thrust::device_ptr<T> dptr_xiInv = thrust::device_pointer_cast(d_xiInv);
 			thrust::fill(dptr_dtSum,dptr_dtSum+neq,dt);
 
 			if( q > 1 ) {
@@ -147,24 +149,47 @@ namespace NumericalSolver {
 
 
 			// 3. Non linear solver
-
-
+			// Set delta to 0
+			thrust::fill(d.begin(),d.end(),(T)0.0);	
+			// Copy Nordsieck array in Y	
+			thrust::device_ptr<T> dptr_ZN = thrust::device_pointer_cast(d_ZN);
+			thrust::copy(dptr_ZN, dptr_ZN + N, Y.begin());
+//			// Call non linear solver
+//			this->nlsolve->compute();
 
 			// 4. Check results
+			// TODO: use exceptions here from 3.
 
 
 			/*
 			 * Complete step
 			 */
-
 			//// 1. Update data
+			// Increment total step number
 			this->nist++;
+			// Update data from previous successful steps "tau"
+			for(int i = q; i >= 2; i--) 
+				dptr_pdt[i-1] = dptr_pdt[i-2]; 
+			if( (q == 1) && (nist > 1) )
+				dptr_pdt[1] = dptr_pdt[0];
+			dptr_pdt[0] = dt;	
 
 			//// 2. Apply correction
+			// ZN[j] = ZN[j] + en * l[j], w/ en being Yn - Yn0
+			for(int j = 0; j <= q; j++) { 
+				axpyWrapper(	handle, 
+						N, 
+						lpolyColumns[j], 
+						thrust::raw_pointer_cast(d.data()), 1,
+						d_ZN, 1); 
+			}			
+			
 
-			//// 3. Manage order q
+			/*
+			 * Prepare next step
+			 */
 
-			// Prepare next step
+			//// 1. Manage order q
 
 		}
 

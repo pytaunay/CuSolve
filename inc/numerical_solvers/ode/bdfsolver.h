@@ -37,7 +37,7 @@ namespace NumericalSolver {
 			T t; /*!< Current time */
 
 			int nist; /*!< Number of internal steps taken */
-			int neq; /*!< Number of independent SYSTEM of ODE */
+//			int neq; /*!< Number of independent SYSTEM of ODE */
 			int N; /*!< Size of the system of ODE */
 
 				
