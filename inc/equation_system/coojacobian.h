@@ -49,12 +49,14 @@ namespace System {
 		//	int *d_jTerms;
 		//	int *d_jOffsetTerms;	
 
-		public:	
+		private:
 			/*! \brief Default constructor
 			 *
 			 *
 			 */
 			cooJacobian();
+
+		public:	
 
 			/*! \brief Constructor based on a given functional
 			 *
@@ -97,6 +99,17 @@ namespace System {
 			__host__ std::vector<int> const & getIdxJ() const {
 				return this->idxJ;
 			}	
+			__host__ std::vector<T> const & getkInds() const {
+				return this->kInds;
+			}	
+			__host__ std::vector<T> const & getConstants() const {
+				return this->constants;
+			}	
+			__host__ std::vector< std::map<T,T> > const & getjFull() const {
+				return this->jFull;
+			}	
+
+
 	};		
 	/*! \brief Kernel  for the Jacobian evaluation
 	 *

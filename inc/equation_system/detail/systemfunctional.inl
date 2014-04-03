@@ -334,7 +334,6 @@ namespace System {
 		int nbEq = this->nbEq;
 		int mxTermsF = this->maxElements;
 
-
 		// Size of k array
 		int nbK = this->h_kData.size();
 		
@@ -448,10 +447,8 @@ namespace System {
 			}
 		}	
 */
-		//we solve J*delta = -f
 		if (threadIdx.x == 0){
-			d_fp[blockIdx.x] 	= -scratch[0];
-		//	d_fp[blockIdx.x] 	= scratch[0];
+			d_fp[blockIdx.x] 	= scratch[0];
 		}
 	} // End of SystemFunctional::k_evaluate()
 }	

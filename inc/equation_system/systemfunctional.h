@@ -22,6 +22,12 @@
 
 namespace System {
 
+	/*!\class SystemFunctional
+	 *
+	 *
+	 *
+	 * \tparam T Type
+	 */
 	template<typename T>
 	class SystemFunctional {
 		protected:
@@ -43,13 +49,41 @@ namespace System {
 			int *d_fOffsetTerms; /*!< Offset terms; allocated on the device*/
 			cusp::array1d<T,cusp::device_memory> d_kData; /*!< k parameter data loaded; allocated on the device*/
 
+		private:
+			/*!\brief Default constructor. Private so user can not use it
+			 *
+			 */
+
 		public:
+			SystemFunctional() {
+				maxElements = 0;
+				maxTermSize = 0;
+				d_fNodes= NULL;
+				d_fTerms= NULL;
+				d_fOffsetTerms = NULL;
+			}	
 			/*!\brief Constructor with filename
 			 *
 			 *
 			 * @param[in] filename location of the k data
 			 */
 			SystemFunctional(char *k_values, char *equations_file); 
+
+			/*!\brief Assignment operator
+			 *
+			 */
+			SystemFunctional<T>& operator=( SystemFunctional<T> tmp ) {
+				std::swap( h_kData, tmp.h_kData );
+				std::swap( h_kInds, tmp.h_kInds );
+				std::swap( constants, tmp.constants );
+				std::swap( yFull , tmp.yFull );
+				std::swap( terms, tmp.terms );
+				maxElements = tmp.maxElements;
+				maxTermSize = tmp.maxTermSize;
+				nbEq = tmp.nbEq;
+
+				return *this;
+			}	
 
 			/*!\brief Evaluation of the system functional, based on the data stored in the device memory
 			 *
@@ -101,6 +135,16 @@ namespace System {
 				return d_kData;
 			}	
 
+			__host__ std::vector<T> const & getkDataHost() const {
+				return h_kData;
+			}	
+
+			__host__ int const & getMaxElements() const {
+				return maxElements;
+			}	
+			__host__ int const & getMaxTermSize() const {
+				return maxTermSize;
+			}	
 
 		public:
 			__device__ void evaluateImplementation(T *d_fp); 

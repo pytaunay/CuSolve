@@ -39,8 +39,6 @@ namespace NumericalSolver {
 			this->q = 5;
 			this->tol = 1e-6;
 			
-			
-
 			// Allocate Nordsieck array: ZN = [ N x L ], for each ODE. L = Q+1
 			cudaMalloc( (void**)&this->d_ZN,sizeof(T)*constants::L_MAX*N);
 			// L polynomial for correction. l = [ 1 x L ], for each ODE
@@ -56,6 +54,12 @@ namespace NumericalSolver {
 			cudaMalloc( (void**)&this->d_pdt,sizeof(T)*constants::L_MAX);
 			cudaMalloc( (void**)&this->d_dtSum,sizeof(T));
 			cudaMalloc( (void**)&this->d_xiInv,sizeof(T));
+
+			//// Create G and H based on F and J
+			// G(U) = (U - YN0) - GAM*(F(U,t) - YdN0) ; GAM = h/l1
+			// G(U) = (U - YN0) - GAM*F(U,t) + ZN1/l1
+			// H = I - GAM*J
+							
 
 		}
 
@@ -119,7 +123,7 @@ namespace NumericalSolver {
 				}	
 			}	
 
-			thrust::fill(dptr_dtSum,dptr_dtSum+neq,dt);
+			//thrust::fill(dptr_dtSum,dptr_dtSum+neq,dt);
 
 			if( q > 1 ) {
 				for(int j = 2; j < q ; j++) {

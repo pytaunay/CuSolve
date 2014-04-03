@@ -80,6 +80,8 @@ namespace NumericalSolver {
 				T tol = (T)1.0;
 				// Evaluate the Jacobian and the functional for the first iteration; stores results in Fv and Jv
 				F.evaluate(Fv,Y);
+				// TODO: NEGATE F to get -F (not done in the function evaluation !) 
+
 				J.evaluate(Jv,Y,F.getkData());
 
 				T scale = (T)10.0;
