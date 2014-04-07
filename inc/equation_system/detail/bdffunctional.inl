@@ -159,7 +159,7 @@ namespace System {
 		__host__ void BDFfunctional<T>
 			::setConstants(
 				const T gamma,
-				const cusp::array1d<T,cusp::device_memory> &Yterm
+				const thrust::device_vector<T> &Yterm
 				) {
 			// Number of equations, and maximum numbers of terms
 			int nbEq = this->nbEq;

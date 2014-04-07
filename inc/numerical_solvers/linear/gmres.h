@@ -48,6 +48,13 @@ namespace NumericalSolver {
 				this->absTol = (T)1e-8;
 			}	
 
+			GMRES(T _relTol, T _absTol) {
+				this->restartIter = 500;
+				this->maxIter = 5000;
+				this->relTol = _relTol;
+				this->absTol = _absTol;
+			}	
+
 			void compute(
 				//	const cusp::detail::matrix_base<int,T,cusp::device_memory,cusp::known_format> &A,
 					cusp::coo_matrix<int,T,cusp::device_memory> &A,

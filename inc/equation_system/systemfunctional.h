@@ -155,8 +155,10 @@ namespace System {
 	 *
 	 * @param[in] d_fp device function pointer, which is obtained from a raw pointer cast of a cusp array1d
 	 */ 
+//	template<typename T>
+	//__global__ void k_FunctionalEvaluate(T *d_fp,const EvalNode<T> *d_fNodes, const int *d_fTerms,const int *d_fOffsetTerms,int nbEq); 
 	template<typename T>
-	__global__ void k_FunctionalEvaluate(T *d_fp,const EvalNode<T> *d_fNodes, const int *d_fTerms,const int *d_fOffsetTerms,int nbEq); 
+	__global__ void k_FunctionalEvaluate(T *d_fp,const EvalNode<T> *d_fNodes, const int *d_fTerms,const int *d_fOffsetTerms,T const* __restrict__ d_kp, T const* __restrict__ d_yp, int nbEq); 
 } // end of System	
 
 #include <equation_system/detail/systemfunctional.inl>

@@ -6,10 +6,18 @@
  *
  */
 
+//// CUDA
+#include <cuda.h>
+// CUSP
+#include <cusp/elementwise.h>
+
+// CuSolve
+#include <equation_system/systemjacobian.h>
+#include <equation_system/coojacobian.h>
 
 namespace System {
 
-
+// neq : total size of the functional
 	template<typename T>
 	BDFcooJacobian<T>
 		::BDFcooJacobian(const cooJacobian<T> &J,int nEq) {
@@ -22,17 +30,7 @@ namespace System {
 		this->jFull = J.getjFull();
 
 		this->maxElements = J.getMaxElements();
-
-		// GPU: Copy data attributes
-		int num_leaves = this->constants.size();
-		cudaMalloc((void**)&this->d_jNodes,sizeof(EvalNode<T>)*num_leaves);
-		cudaCheckError("malloc, d_jNodes");
-
-		cudaMalloc((void**)&this->d_jTerms, sizeof(int)*num_funcs);
-		cudaCheckError("malloc, d_jTerms");
-
-		cudaMalloc((void**)&this->d_jOffsetTerms, sizeof(int)*num_funcs);
-		cudaCheckError("malloc, d_jOffsetTerms");
+		this->nbElem = J.getnbElem();
 
 		// LION-CODES: init.cpp
 		// Number of leaves in the Jacobian matrix
@@ -97,20 +95,20 @@ namespace System {
 		delete[] tmp_terms, tmp_nodes, tmp_offsets;
 
 
-		// Set the identity matrix
+		//// Set the identity matrix
+		// Indices are 0 through Neq-1
 		thrust::host_vector<int> tmpIdx(nEq);
 		thrust::sequence(tmpIdx.begin(),tmpIdx.end());
 		
+
 		this->ID.resize(nEq,nEq,nEq);
 		thrust::copy(tmpIdx.begin(),tmpIdx.end(),ID.row_indices.begin());
 		thrust::copy(tmpIdx.begin(),tmpIdx.end(),ID.column_indices.begin());
-		thrust::copy(tmpIdx.begin(),tmpIdx.end(),ID.values.begin());
-
-	
+		thrust::fill(ID.values.begin(),ID.values.end(),(T)1.0);
 	}
 
 	template<typename T>
-	__host__ void BDFcooJacobian 
+	__host__ void BDFcooJacobian<T> 
 		::evaluate(cusp::coo_matrix<int,T,cusp::device_memory> &J,
 				const cusp::array1d<T,cusp::device_memory> &Y,
 				const cusp::array1d<T,cusp::device_memory> &d_kData) const {
@@ -144,6 +142,8 @@ namespace System {
 			cudaUnbindTexture(yTexJ);
 
 			// Add the identity matrix to get I - gamma*J
+			// cusp::add
+			cusp::add(J,this->ID,J);
 
 	}
 
@@ -151,7 +151,7 @@ namespace System {
 
 
 	template<typename T>
-	__host__ void BDFcooJacobian
+	__host__ void BDFcooJacobian<T>
 		::setConstants(const T gamma){
 
 		int nbJac = this->nbElem;
@@ -165,7 +165,7 @@ namespace System {
 
 		k_BDFcooJacobianSetConstants <<<blocks_j,threads_j>>> (gamma,this->d_jNodes,this->d_jTerms,this->d_jOffsetTerms, num_leaves);
 		cudaThreadSynchronize();
-		cudaCheckError("Error from the evaluation of the Jacobian: kernel call");
+		cudaCheckError("Error from the BDF Jacobian setting the data");
 
 	}
 

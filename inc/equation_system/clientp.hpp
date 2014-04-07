@@ -3,6 +3,7 @@
 #include <boost/config/warning_disable.hpp>
 #include <boost/bind.hpp>
 #include <boost/spirit/include/qi.hpp>
+#include <boost/spirit/include/qi_real.hpp>
 #include <boost/spirit/include/phoenix_core.hpp>
 #include <boost/spirit/include/phoenix_operator.hpp>
 #include <boost/spirit/include/phoenix_stl.hpp>
@@ -37,7 +38,8 @@ namespace clientp
 
 
 
-	void update(std::map<float,float> &x, const float& key, const float& val){
+	template <typename T>
+	void update(std::map<T,T> &x, const T& key, const T& val){
 
 		x[key]+=val;
 	}
@@ -48,6 +50,7 @@ namespace clientp
 	namespace phoenix = boost::phoenix;
 
 	using qi::float_;
+	using qi::double_;
 	using qi::phrase_parse;
 	using qi::_1;
 	using ascii::space;
@@ -113,8 +116,8 @@ namespace clientp
 					//  this looks like hell
 					(
 					 *("y(" >> float_[phoenix::ref(base)=_1] >> ")^(" >> float_[phoenix::ref(exp)=_1] >> '/' >> float_[phoenix::ref(exp)/=_1]\
-						 [boost::bind(&update,boost::ref(x),boost::ref(base),boost::ref(exp))] >> ')' |
-						 "y(" >> float_[phoenix::ref(base)=_1, boost::bind(&update,boost::ref(x),boost::ref(base),1.0f)] >> ')')
+						 [boost::bind(&update<float>,boost::ref(x),boost::ref(base),boost::ref(exp))] >> ')' |
+						 "y(" >> float_[phoenix::ref(base)=_1, boost::bind(&update<float>,boost::ref(x),boost::ref(base),1.0f)] >> ')')
 					)
 					,
 					//skip
@@ -123,6 +126,78 @@ namespace clientp
 
 			return r;
 		}
+
+	template <typename Iterator>
+		bool parse_csv(Iterator first, Iterator last, std::vector<double>& k)
+		{
+			bool r = phrase_parse(first, last,
+
+					//  grammar for csv files
+					(
+					 //*(double_ >> ',' | double_ [push_back(phoenix::ref(k),_1)])
+					 *(double_ [push_back(phoenix::ref(k),_1)])
+					)
+					,
+					space);
+
+			return r;
+
+		}
+
+
+	template <typename Iterator>
+		bool parse_k_vals(Iterator first, Iterator last, std::vector<double>& w)
+		{			
+			bool r = phrase_parse(first, last,
+
+					//  grammar for k constants
+					(
+					 ("k(" >> double_[push_back(phoenix::ref(w), _1)] >> ')')
+					)
+					,
+					//skip
+					space | '*' | double_ >> '*' | '-'>>double_ >> '*'| '+' >> double_ >> '*'| "y(" >> double_ >> ')');
+
+			return r;
+		}
+
+	template <typename Iterator>
+		bool parse_constants(Iterator first, Iterator last, std::vector<double>& v)
+		{
+			bool r = phrase_parse(first, last,
+
+					//  grammar for numerical constants & sign
+					(
+					 (double_[push_back(phoenix::ref(v), _1)] >> '*')
+					)
+					,
+					//skip
+					space);
+			return r;
+		}
+	template <typename Iterator>
+		bool parse_y_vals(Iterator first, Iterator last, std::map<double,double>& x)
+		{
+			double base =1.0;
+			double exp = 0.0;
+			bool r = phrase_parse(first, last,
+
+					//  grammar for y variables
+					//  this looks like hell
+					(
+					 *("y(" >> double_[phoenix::ref(base)=_1] >> ")^(" >> double_[phoenix::ref(exp)=_1] >> '/' >> double_[phoenix::ref(exp)/=_1]\
+						 [boost::bind(&update<double>,boost::ref(x),boost::ref(base),boost::ref(exp))] >> ')' |
+						 "y(" >> double_[phoenix::ref(base)=_1, boost::bind(&update<double>,boost::ref(x),boost::ref(base),1.0f)] >> ')')
+					)
+					,
+					//skip
+					space | '*' | double_ >> '*' | '-'>>double_ >> '*'| '+' >> double_ >> '*'| "k(" >> double_ >> ')');
+
+
+			return r;
+		}
+
+
 }
 }
 

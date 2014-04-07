@@ -26,17 +26,17 @@
 //#include <equation_system/systemjacobian.h>
 #include <equation_system/systemfunctional.h>
 
+namespace NumericalSolver {
 
 template<typename T>
-class square {
+class square_functor : public thrust::unary_function<T,T> {
 	public:
 	__host__ __device__
-	T operator()(const T &x) const {
+	T operator()(const T &x) {
 		return x*x;
 	}
 };	
 
-namespace NumericalSolver {
 
 		template<typename T>
 		NewtonRaphson<T>::
@@ -80,11 +80,11 @@ namespace NumericalSolver {
 				T tol = (T)1.0;
 				// Evaluate the Jacobian and the functional for the first iteration; stores results in Fv and Jv
 				F.evaluate(Fv,Y);
-				// TODO: NEGATE F to get -F (not done in the function evaluation !) 
+				thrust::transform(Fv.begin(),Fv.end(),Fv.begin(),thrust::negate<T>());
 
 				J.evaluate(Jv,Y,F.getkData());
 
-				T scale = (T)10.0;
+				T scale = (T)100.0;
 				cusp::array1d<T,cusp::device_memory> tmp(F.getTerms().size(),(T)(1.0)/scale);
 
 
@@ -109,8 +109,14 @@ namespace NumericalSolver {
 								
 					// Calculate the tolerance: tol = scale*sqrt(sum( d*d ))
 					F.evaluate(Fv,Y);
-					tol = thrust::transform_reduce(Fv.begin(),Fv.end(),square<T>(),(T)0.0,thrust::plus<T>());
-//					tol = scale*std::sqrt(tol);
+					thrust::transform(Fv.begin(),Fv.end(),Fv.begin(),thrust::negate<T>());
+
+
+					tol = thrust::transform_reduce(Fv.begin(),Fv.end(),square_functor<T>(),(T)0.0,thrust::plus<T>());
+
+
+					tol = scale*std::sqrt(tol);
+					//tol = std::sqrt(tol);
 					std::cout << "Iteration " << N+1 << "\t Tolerance: " << tol << endl;
 
 					// Break if tolerance is attained
@@ -120,12 +126,12 @@ namespace NumericalSolver {
 						cusp::print(Y);
 						std::cout << "INFO Final functional" << std::endl;
 						F.evaluate(Fv,Y);
+						thrust::transform(Fv.begin(),Fv.end(),Fv.begin(),thrust::negate<T>());
 						cusp::print(Fv);
 						break;
 					}	
 					
 					// Update the Jacobian and the functional
-//					F.evaluate(Fv,Y);
 					J.evaluate(Jv,Y,F.getkData());
 				}	
 			} // End of NewtonRaphson :: compute

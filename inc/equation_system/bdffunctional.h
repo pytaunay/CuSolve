@@ -40,7 +40,7 @@ namespace System {
 		public:
 			BDFfunctional(const SystemFunctional<T>& F); 
 
-			__host__ void setConstants(const T gamma, const cusp::array1d<T,cusp::device_memory> &Yterm);
+			__host__ void setConstants(const T gamma, const thrust::device_vector<T> &Yterm);
 		
 	};
 

@@ -33,6 +33,13 @@ namespace System {
 	
 	template<typename T>
 	cooJacobian<T>
+		::cooJacobian() {
+		
+		}
+
+
+	template<typename T>
+	cooJacobian<T>
 		::cooJacobian(const SystemFunctional<T> &F) {
 
 		int displacement=0;
@@ -267,7 +274,7 @@ namespace System {
 			threads_j.x = (mxTermsJ< 32) ? 32 : ceil((T)mxTermsJ/((T)32.0))*32;
 
 			std::cout << "Starting the Jacobian evaluation routine on the GPU with NTH=" << threads_j.x << " and NBL=" << blocks_j.x << std::endl;
-			k_JacobianEvaluate<T> <<<blocks_j,threads_j>>> (d_Jp,this->d_jNodes,this->d_jTerms,this->d_jOffsetTerms);
+			k_JacobianEvaluate<T> <<<blocks_j,threads_j>>> (d_Jp,this->d_jNodes,this->d_jTerms,this->d_jOffsetTerms,d_kp,d_yp);
 			cudaThreadSynchronize();
 			cudaCheckError("Error from the evaluation of the Jacobian: kernel call");
 
@@ -284,7 +291,9 @@ namespace System {
 					T *d_Jp,
 					const EvalNode<T> *d_jNodes,
 					const int *d_jTerms,
-					const int *d_jOffsetTerms
+					const int *d_jOffsetTerms,
+					T const* __restrict__ d_kp,
+					T const* __restrict__ d_yp
 					) {
 
 		__shared__ volatile T scratch[256];
@@ -302,12 +311,15 @@ namespace System {
 
 			fnt                = node.constant;
 			int K_index        = (node.kIdx-1);
-			fnt                *= tex1Dfetch(kTexJ, K_index);
+			//fnt                *= tex1Dfetch(kTexJ, K_index);
+			fnt                *= d_kp[K_index];
 			//zero based indexing
 			if (node.yExp1 != 0)
-				fnt                *= pow(tex1Dfetch(yTexJ, node.yIdx1-1),node.yExp1);        
+				fnt                *= pow(d_yp[node.yIdx1-1],node.yExp1);        
+			//	fnt                *= pow(tex1Dfetch(yTexJ, node.yIdx1-1),node.yExp1);        
 			if (node.yIdx2 != -1)
-				fnt                *= pow(tex1Dfetch(yTexJ, node.yIdx2-1),node.yExp2);        
+				fnt                *= pow(d_yp[node.yIdx2-1],node.yExp2);        
+			//	fnt                *= pow(tex1Dfetch(yTexJ, node.yIdx2-1),node.yExp2);        
 	
 	//		printf("b : %i t: %i c: %f k: %i y1: %i e1: %f y2: %i e2: %f fnt : %f tr : %f y: %f\n",\
 	//		blockIdx.x,threadIdx.x,node.constant,node.kIdx,node.yIdx1,node.yExp1,node.yIdx2,\

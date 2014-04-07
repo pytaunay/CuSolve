@@ -356,7 +356,7 @@ namespace System {
 		std::cout << "Starting the functional evaluation routine ... " << std::endl;
 
 		// Run kernel
-		k_FunctionalEvaluate<T> <<< blocks_f,threads_f >>> (d_fp,this->d_fNodes,this->d_fTerms,this->d_fOffsetTerms,this->nbEq);
+		k_FunctionalEvaluate<T> <<< blocks_f,threads_f >>> (d_fp,this->d_fNodes,this->d_fTerms,this->d_fOffsetTerms,d_kp,d_yp,this->nbEq);
 		cudaThreadSynchronize();
 		cudaCheckError("Error from the evaluation of the functional");
 
@@ -377,6 +377,8 @@ namespace System {
 			const EvalNode<T> *d_fNodes,
 			const int *d_fTerms,
 			const int *d_fOffsetTerms,
+			T const* __restrict__ d_kp,
+			T const* __restrict__ d_yp,
 			int nbEq)	
 		{
 
@@ -392,11 +394,13 @@ namespace System {
 			EvalNode<T> node = d_fNodes[index+threadIdx.x];
 
 			fnt		=  node.constant;
-			fnt		*= tex1Dfetch(kTex, node.kIdx-1);
+		//	fnt		*= tex1Dfetch(kTex, node.kIdx-1);
+			fnt		*= d_kp[node.kIdx-1];
 			//zero based indexing
-			fnt		*= pow(tex1Dfetch(yTex, node.yIdx1-1),node.yExp1);	
+			//fnt		*= pow((T)tex1Dfetch(yTex, node.yIdx1-1),node.yExp1);	
+			fnt		*= pow( d_yp[node.yIdx1-1],node.yExp1);	
 			if (node.yIdx2 != -1)
-				fnt		*= pow(tex1Dfetch(yTex, node.yIdx2-1),node.yExp2);	
+				fnt		*= pow( d_yp[node.yIdx2-1],node.yExp2);	
 	//		printf("b : %i t: %i c: %f k: %i y1: %i e1: %f y2: %i e2: %f fnt : %f tr : %f y: %f\n",\
 	//		blockIdx.x,threadIdx.x,node.constant,node.kIdx,node.yIdx1,node.yExp1,node.yIdx2,\
 	//			node.yExp2, fnt, tex1Dfetch(kTex,node.kIdx-1), tex1Dfetch(yTex, node.yIdx1-1));

@@ -47,15 +47,12 @@ namespace System {
 					const cusp::array1d<T,cusp::device_memory> &d_kData) const;
 
 			__host__ void setConstants(const T gamma);		
-
-
-
 	};
 
 
 	template<typename T>
 	__global__ void
-		k_BDFcooJacobianSetConstants(const T gamma, const int *d_fTerms, const int *d_fOffsetTerms, const int num_leaves, EvalNode<T> *d_fNodes);
+		k_BDFcooJacobianSetConstants(const T gamma, EvalNode<T> *d_jNodes, const int *d_fTerms, const int *d_fOffsetTerms, const int num_leaves);
 
 } // end of namespace System
 

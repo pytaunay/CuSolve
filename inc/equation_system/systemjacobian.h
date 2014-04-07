@@ -39,7 +39,8 @@ namespace System {
 			__host__ virtual void evaluate() = 0;
 			__global__ void k_evaluate();
 		*/
-			
+
+
 	};
 } // End namespace System	
 

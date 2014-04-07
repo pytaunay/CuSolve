@@ -43,20 +43,19 @@ namespace System {
 		//	std::vector<T>  constants;
 		//	std::vector< std::map<T,T> > jFull;
 		//	int maxElements;
+		//	int nbElem;
 
 			// Device wrappers
 		//	EvalNode<T> *d_jNodes;
 		//	int *d_jTerms;
 		//	int *d_jOffsetTerms;	
 
-		private:
+		public:	
 			/*! \brief Default constructor
 			 *
 			 *
 			 */
 			cooJacobian();
-
-		public:	
 
 			/*! \brief Constructor based on a given functional
 			 *
@@ -108,8 +107,12 @@ namespace System {
 			__host__ std::vector< std::map<T,T> > const & getjFull() const {
 				return this->jFull;
 			}	
-
-
+			__host__ int const & getMaxElements() const {
+				return this->maxElements;
+			}	
+			__host__ int const & getnbElem() const {
+				return this->nbElem;
+			}	
 	};		
 	/*! \brief Kernel  for the Jacobian evaluation
 	 *
@@ -120,7 +123,9 @@ namespace System {
 					T *d_Jp,
 					const EvalNode<T> *d_jNodes,
 					const int *d_jTerms,
-					const int *d_jOffsetTerms
+					const int *d_jOffsetTerms,
+					T const* __restrict__ d_kp,
+					T const* __restrict__ d_yp
 					);
 } // end of namespace System
 
