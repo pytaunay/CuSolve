@@ -41,6 +41,7 @@ namespace System {
 			BDFfunctional(const SystemFunctional<T>& F); 
 
 			__host__ void setConstants(const T gamma, const thrust::device_vector<T> &Yterm);
+			__host__ void resetConstants(const SystemFunctional<T>& F);
 		
 	};
 
@@ -48,7 +49,16 @@ namespace System {
 	__global__ void
 		k_BDFfunctionalSetConstants(const T gamma, const T *Y,const int *d_fTerms,const int *d_fOffsetTerms,const int num_leaves,	EvalNode<T> *d_fNodes); 
 
-	
+
+	template<typename T>
+	__global__ void	k_BDFfunctionalResetConstants(
+						const int *d_fTerms, 
+						const int *d_fOffsetTerms,
+						const int *d_gTerms, 
+						const int *d_gOffsetTerms,
+						const int num_leaves,
+						const EvalNode<T> *d_fNodes,
+						EvalNode<T> *d_gNodes);
 }
 
 #include <equation_system/detail/bdffunctional.inl>

@@ -230,4 +230,57 @@ namespace System {
 			
 			}
 		}	
+
+		template<typename T>
+		__host__ void BDFfunctional<T>
+			::resetConstants(
+				const SystemFunctional<T>& F
+				) {
+			// Number of equations, and maximum numbers of terms
+			int nbEq = this->nbEq;
+			int mxTermsF = this->maxElements;
+			int num_leaves = this->yFull.size();
+
+			// Determine running configuration
+			dim3 blocks_f, threads_f;
+			blocks_f.x = nbEq;
+			threads_f.x = ( mxTermsF < 32 ) ? 32 : ceil( (T)mxTermsF / ((T)32.0))*32;
+
+			k_BDFfunctionalResetConstants <<< blocks_f, threads_f >>> ( F.getDevTerms(), F.getDevOffset(), this->d_fTerms, this->d_fOffsetTerms,num_leaves, F.getNodes(), this->d_fNodes);
+				
+			cudaThreadSynchronize();
+			cudaCheckError("Error in the setting of parameters in the BDF functional");
+		} // End of BDFfunctional::resetConstants()	
+
+		template<typename T>
+		__global__ void
+			k_BDFfunctionalResetConstants(
+						const int *d_fTerms, 
+						const int *d_fOffsetTerms,
+						const int *d_gTerms, 
+						const int *d_gOffsetTerms,
+						const int num_leaves,
+						const EvalNode<T> *d_fNodes,
+						EvalNode<T> *d_gNodes) {
+			
+			//could use constant mem here
+			int indexG = d_gOffsetTerms[blockIdx.x];
+			int indexF = d_fOffsetTerms[blockIdx.x];
+
+			int terms_this_function = d_gTerms[blockIdx.x];
+
+			EvalNode<T> nodeF,nodeG;
+
+			// All threads load something
+			if(indexG + threadIdx.x < num_leaves) {
+				nodeF = d_fNodes[indexF + threadIdx.x];
+				nodeG = d_gNodes[indexG + threadIdx.x];
+
+				// Divergence starts here
+				if(threadIdx.x < terms_this_function - 2 ) {
+					nodeG.constant = nodeF.constant;
+					d_gNodes[indexG + threadIdx.x] = nodeG;
+				}	
+			}
+		}	
 }		

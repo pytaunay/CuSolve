@@ -30,7 +30,7 @@ namespace System {
 	 * \tparam T Type 
 	 */
 	template<typename T>
-	class cooJacobian : public SystemJacobian<T> 
+	class cooJacobian : virtual public SystemJacobian<T> 
 	{
 		protected:
 			// Host
@@ -78,11 +78,12 @@ namespace System {
 			 * \todo Determine nthreads, nblocks
 			 * \todo Fix textures 
 			 */
-			__host__ void evaluate(
+			__host__ virtual void evaluate(
 					cusp::coo_matrix<int,T,cusp::device_memory> &J,
 					const cusp::array1d<T,cusp::device_memory> &Y,
 					const cusp::array1d<T,cusp::device_memory> &d_kData) const;
 
+//			__host__ virtual void setConstants(const T gamma);		
 			
 			/*! \brief Get terms
 			 *
@@ -112,6 +113,9 @@ namespace System {
 			}	
 			__host__ int const & getnbElem() const {
 				return this->nbElem;
+			}	
+			__host__ __device__ EvalNode<T>* const & getNodes() const {
+				return this->d_jNodes;
 			}	
 	};		
 	/*! \brief Kernel  for the Jacobian evaluation

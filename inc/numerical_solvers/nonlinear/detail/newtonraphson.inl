@@ -79,27 +79,41 @@ class square_functor : public thrust::unary_function<T,T> {
 				
 				T tol = (T)1.0;
 				// Evaluate the Jacobian and the functional for the first iteration; stores results in Fv and Jv
+				std::cout << std::endl;
+				for(int i = 0;i < Fv.size();i++)
+					std::cout << "Y[" << i << "] = " << Y[i] << std::endl;
 				F.evaluate(Fv,Y);
+				std::cout << std::endl;
+				for(int i = 0;i < Fv.size();i++)
+					std::cout << "F[" << i << "] = " << Fv[i] << std::endl;
+
 				thrust::transform(Fv.begin(),Fv.end(),Fv.begin(),thrust::negate<T>());
 
-				J.evaluate(Jv,Y,F.getkData());
 
-				T scale = (T)100.0;
-				cusp::array1d<T,cusp::device_memory> tmp(F.getTerms().size(),(T)(1.0)/scale);
+				J.evaluate(Jv,Y,F.getkData());
+				cusp::print(Jv);
+
+				T scale = (T)1.0;
+//				cusp::array1d<T,cusp::device_memory> tmp(F.getTerms().size(),(T)(1.0)/scale);
 
 
 				for(int N = 0; N < this->maxIter; N++) {
 					// Solve J*d = -F
 					this->lsolve->compute(Jv,d,Fv);	
 
+					std::cout << "Solution of linear system J*d = -F" << std::endl;
+
+					for(int i = 0; i<d.size();i++)
+						std::cout << "d[" << i << "] = "<< d[i] << std::endl;
+
 					// Update Y from delta: Y = Y + d/scale
 					// Apply scaling to d, in place
-					thrust::transform(	d.begin(),
+				/*	thrust::transform(	d.begin(),
 								d.end(),
 								tmp.begin(),
 								d.begin(),
 								thrust::multiplies<T>());
-
+*/	
 					// Y = Y+d/s
 					thrust::transform(	Y.begin(), 
 								Y.end(), 
@@ -126,7 +140,6 @@ class square_functor : public thrust::unary_function<T,T> {
 						cusp::print(Y);
 						std::cout << "INFO Final functional" << std::endl;
 						F.evaluate(Fv,Y);
-						thrust::transform(Fv.begin(),Fv.end(),Fv.begin(),thrust::negate<T>());
 						cusp::print(Fv);
 						break;
 					}	

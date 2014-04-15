@@ -113,6 +113,8 @@ namespace System {
 				const cusp::array1d<T,cusp::device_memory> &Y,
 				const cusp::array1d<T,cusp::device_memory> &d_kData) const {
 
+			// Fill the original J with zeros
+			thrust::fill(J.values.begin(),J.values.end(),(T)(0.0));
 			int nbJac = this->nbElem;
 			int mxTermsJ = this->maxElements;
 
@@ -134,7 +136,8 @@ namespace System {
 			threads_j.x = (mxTermsJ< 32) ? 32 : ceil((T)mxTermsJ/((T)32.0))*32;
 
 			std::cout << "Starting the Jacobian evaluation routine on the GPU with NTH=" << threads_j.x << " and NBL=" << blocks_j.x << std::endl;
-			k_JacobianEvaluate<T> <<<blocks_j,threads_j>>> (d_Jp,this->d_jNodes,this->d_jTerms,this->d_jOffsetTerms);
+		//	k_JacobianEvaluate<T> <<<blocks_j,threads_j>>> (d_Jp,this->d_jNodes,this->d_jTerms,this->d_jOffsetTerms);
+			k_JacobianEvaluate<T> <<<blocks_j,threads_j>>> (d_Jp,this->d_jNodes,this->d_jTerms,this->d_jOffsetTerms,d_kp,d_yp);
 			cudaThreadSynchronize();
 			cudaCheckError("Error from the evaluation of the Jacobian: kernel call");
 
@@ -184,11 +187,54 @@ namespace System {
 
 			// Warp divergence occurs here
 			if(threadIdx.x < terms_this_function) {
-				node.constant *= -1.0f*gam;
+				node.constant *= -(T)1.0*gam;
 				d_jNodes[index+threadIdx.x] = node;
 			}
 		}	
 	}
+
+	template<typename T>
+	__host__ void BDFcooJacobian<T>
+		::resetConstants(const cooJacobian<T> &J){
+
+		int nbJac = this->nbElem;
+		int mxTermsJ = this->maxElements;
+		int num_leaves = this->jFull.size();
+
+		// Set up grid configuration
+		dim3 blocks_j, threads_j;
+		blocks_j.x = nbJac;
+		threads_j.x = (mxTermsJ< 32) ? 32 : ceil((T)mxTermsJ/((T)32.0))*32;
+
+		k_BDFcooJacobianResetConstants <<<blocks_j,threads_j>>> (J.getNodes(),this->d_jNodes,this->d_jTerms,this->d_jOffsetTerms, num_leaves);
+		cudaThreadSynchronize();
+		cudaCheckError("Error from the BDF Jacobian setting the data");
+
+
+		}
+
+	template<typename T>
+	__global__ void
+		k_BDFcooJacobianResetConstants(const EvalNode<T> *d_jNodes, EvalNode<T> *d_gNodes, const int *d_jTerms, const int *d_jOffsetTerms, const int num_leaves) {
+
+		int index = d_jOffsetTerms[blockIdx.x];
+		int terms_this_function = d_jTerms[blockIdx.x];
+
+		EvalNode<T> nodeJ,nodeG;
+		if(index + threadIdx.x < num_leaves) {
+			// ALl threads load sthg
+			nodeJ = d_jNodes[index + threadIdx.x];
+			nodeG = d_gNodes[index + threadIdx.x];
+
+			// Warp divergence occurs here
+			if(threadIdx.x < terms_this_function) {
+				nodeG.constant = nodeJ.constant;
+				d_gNodes[index+threadIdx.x] = nodeG;
+			}
+		}	
+	}
+		
+
 }
 	
 

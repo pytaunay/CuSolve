@@ -145,6 +145,15 @@ namespace System {
 			__host__ int const & getMaxTermSize() const {
 				return maxTermSize;
 			}	
+			__host__ __device__ EvalNode<T>* const & getNodes() const {
+				return this->d_fNodes;
+			}	
+			__host__ __device__ int* const & getDevTerms() const {
+				return this->d_fTerms;
+			}	
+			__host__ __device__ int* const & getDevOffset() const {
+				return this->d_fOffsetTerms;
+			}	
 
 		public:
 			__device__ void evaluateImplementation(T *d_fp); 

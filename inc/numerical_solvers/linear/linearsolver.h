@@ -7,10 +7,14 @@
  */
 #pragma once
 
+
+#include <numerical_solvers/numericalsolver.h>
+
+
 namespace NumericalSolver {
 	
 	template<typename T>
-	class LinearSolver {
+	class LinearSolver : public Solver {
 		public:
 			virtual void compute(
 					cusp::coo_matrix<int,T,cusp::device_memory> &A,
