@@ -273,11 +273,11 @@ namespace System {
 
 			// All threads load something
 			if(indexG + threadIdx.x < num_leaves) {
-				nodeF = d_fNodes[indexF + threadIdx.x];
 				nodeG = d_gNodes[indexG + threadIdx.x];
 
 				// Divergence starts here
 				if(threadIdx.x < terms_this_function - 2 ) {
+					nodeF = d_fNodes[indexF + threadIdx.x];
 					nodeG.constant = nodeF.constant;
 					d_gNodes[indexG + threadIdx.x] = nodeG;
 				}	

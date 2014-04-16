@@ -359,17 +359,19 @@ namespace NumericalSolver {
 								lpolyColumns[2] = (T) 1.0;
 								dtSum = (T)0.0;
 								for(int j = 1; j<q-1;j++) {
-									dtSum += dptr_pdt[j];
+									dtSum += dptr_pdt[j-1];
 									xi = dtSum/dtNext;
 									for(int i = j+2; i>1;i--) {
-										lpolyColumns[i] = lpolyColumns[i]*xiold + lpolyColumns[i-1];
+										lpolyColumns[i] = lpolyColumns[i]*xi + lpolyColumns[i-1];
 									}
 								}	
 								for(int j = 2; j<q; j++) {
 									// FIXME: Use zip or CUBLAS for AXPY 
-									thrust::transform(dptr_ZN + (this->q+1)*this->nEq, dptr_ZN + (this->q + 2)*this->nEq,YTMP.begin(),scalar_functor<T>(lpolyColumns[j]));
+									// ZN[J] = -ZN[Q]*L[J] + ZN[J] 
+									thrust::transform(dptr_ZN + this->q*this->nEq, dptr_ZN + (this->q + 1)*this->nEq,YTMP.begin(),scalar_functor<T>(-1.0*lpolyColumns[j]));
 									thrust::transform(YTMP.begin(), YTMP.end(),dptr_ZN + j*this->nEq, dptr_ZN + j*this->nEq, thrust::plus<T>());
 								}
+								/*
 								if( this->nist == 357) {
 									std::cout << std::endl;
 									std::cout << "Nordsieck after order change" << std::endl;
@@ -378,7 +380,9 @@ namespace NumericalSolver {
 										for(int i=0;i<this->nEq;i++) 
 											std::cout << *(dptr_ZN +j*this->nEq + i) << std::endl;
 									}
-								}	
+								}*/
+								std::cout<<std::endl;
+								std::cout << "Iteration " << this->nist << " decreased the order" << std::endl;
 
 							break;
 						}	
@@ -475,23 +479,13 @@ namespace NumericalSolver {
 				xi_inv = (T)1.0;
 				if( q > 1 ) {
 					for(int j = 2; j < q ; j++) {
-						// hsum <- hsum + tau[j-1]
-						//axpyWrapper(handle,1,(const T*)(&constants::ONE), &d_pdt[j-2], 1, d_dtSum, 1);
 						dtSum += dptr_pdt[j-2]; 
-						// xi_inv <- h/hsum
 						xi_inv = dt/dtSum;
-					/*	thrust::transform(	dptr_dtSum,
-									dptr_dtSum + 1, 
-									dptr_xiInv,
-									scalar_inv_functor<T>(dt)
-								);
-					*/
 						alpha0 -= 1.0/(T)j;
 
 						for(int i = j; i>=1; i--) {
-							// l[i] <- l[i] + l[i-1] * xi_inv
 							// For multiple (read large amount of) equations, just use zip iterators
-							lpolyColumns[i] = lpolyColumns[i] + lpolyColumns[i-1] * dptr_xiInv[0];	
+							lpolyColumns[i] = lpolyColumns[i] + lpolyColumns[i-1] * xi_inv;	
 						}
 
 					}
@@ -500,10 +494,9 @@ namespace NumericalSolver {
 					alpha0 -= 1.0/(T)q;
 					xistar_inv = -lpolyColumns[1]-alpha0;
 					dtSum += dptr_pdt[q-2];
-					dptr_xiInv[0] = dt/dtSum;
-					alpha0_hat = -lpolyColumns[1] - dt/dtSum;
+					xi_inv = dt/dtSum;
+					alpha0_hat = -lpolyColumns[1] - xi_inv;
 					for(int i = q; i>=1; i--) {
-						// l[i] <- l[i] + l[i-1] * xi_inv
 						// For multiple (read large amount of) equations, just use zip iterators
 						lpolyColumns[i] = lpolyColumns[i] + lpolyColumns[i-1] * xistar_inv;	
 					}
@@ -520,7 +513,7 @@ namespace NumericalSolver {
 
 				if( this->qNextChange == 1) {
 					if( q > 1 ) {
-						dptr_coeffCtrlEstErr[1] = abs( xistar_inv / lpolyColumns[q] * ( 1.0 + (1.0-alpha0_hat-dptr_xiInv[0])/(alpha0 + 1.0/(T)q))); 
+						dptr_coeffCtrlEstErr[1] = abs( xistar_inv / lpolyColumns[q] * ( 1.0 + (1.0-alpha0_hat-xi_inv)/(alpha0 + 1.0/(T)q))); 
 					}
 					else {
 						dptr_coeffCtrlEstErr[1] = 1.0;
@@ -529,7 +522,7 @@ namespace NumericalSolver {
 					xi_inv = dt/dtSumtmp;
 					T tmp2 = alpha0-(1.0/(T)(q+1));
 					T tmp3 = alpha0_hat - xi_inv;
-					dptr_coeffCtrlEstErr[3] = abs( (1.0-tmp3+tmp2)/((1.0+q*(1.0-alpha0_hat+alpha0))*xi_inv*(q+2)*tmp2)); 
+					dptr_coeffCtrlEstErr[3] = abs( (1.0-tmp3+tmp2)/((1.0+(T)q*(1.0-alpha0_hat+alpha0))*xi_inv*((T)(q+2))*tmp2)); 
 				}	
 				
 				std::cout << std::endl;
