@@ -110,6 +110,25 @@ namespace NumericalSolver {
 	};	
 			
 
+	template<typename T>
+	BDFsolver<T>::
+		~BDFsolver() {
+			delete G;
+			delete H;
+			delete nlsolve;
+
+			cudaFree(d_ZN);
+			cudaFree(d_lpoly);
+			cudaFree(d_pdt);
+			cudaFree(d_dtSum);
+			cudaFree(d_xiInv);
+			cudaFree(d_absTol);
+			cudaFree(d_weight);
+			cudaFree(d_coeffCtrlEstErr);
+			cudaFree(d_pcoeffCtrlEstErr);
+			cublasDestroy(handle);
+		}	
+
 
 	// Constructors: allocate memory on GPU, etc...
 	template<typename T>
@@ -123,6 +142,7 @@ namespace NumericalSolver {
 			this->t = (T)0.0;
 			// At the first step, the BDF solver is equivalent to a backwards Euler (q=1)
 			this->q = 1;
+			this->qNext = 1;
 			this->relTol = 1e-4;
 			this->qNextChange = this->q + 1;
 
@@ -141,6 +161,7 @@ namespace NumericalSolver {
 //			for(int i = 0; i< constants:: L_MAX; i++)
 //				lpolyColumns.push_back( thrust::device_pointer_cast(&d_lpoly[i*neq]));
 			lpolyColumns = thrust::device_pointer_cast(d_lpoly);
+			thrust::fill(lpolyColumns,lpolyColumns+BDFsolver<T>::LMAX(),(T)0.0);
 
 			// Create previous q+1 successful step sizes
 			cudaMalloc( (void**)&this->d_pdt,sizeof(T)*BDFsolver<T>::LMAX());
@@ -161,6 +182,9 @@ namespace NumericalSolver {
 			//// Initialization of the Nordsieck array
 			// FTMP = YN0_dot
 			this->dptr_ZN = thrust::device_pointer_cast(d_ZN);
+			thrust::fill( dptr_ZN, dptr_ZN + this->nEq*BDFsolver<T>::LMAX(), (T)0.0);
+
+
 			cusp::array1d<T,cusp::device_memory> FTMP(this->nEq);
 			F.evaluate(FTMP,Y0);
 			
@@ -182,9 +206,12 @@ namespace NumericalSolver {
 			//// Control of estimated local error
 			cudaMalloc((void**)&this->d_coeffCtrlEstErr,sizeof(T)*BDFsolver<T>::LMAX());
 			this->dptr_coeffCtrlEstErr = thrust::device_pointer_cast(d_coeffCtrlEstErr);
+			thrust::fill(dptr_coeffCtrlEstErr, dptr_coeffCtrlEstErr + BDFsolver<T>::LMAX(), (T)0.0);
+
 
 			cudaMalloc((void**)&this->d_pcoeffCtrlEstErr,sizeof(T)*BDFsolver<T>::LMAX());
 			this->dptr_pcoeffCtrlEstErr = thrust::device_pointer_cast(d_pcoeffCtrlEstErr);
+			thrust::fill(dptr_pcoeffCtrlEstErr, dptr_pcoeffCtrlEstErr + BDFsolver<T>::LMAX(), (T)0.0);
 		}
 
 
@@ -206,6 +233,9 @@ namespace NumericalSolver {
 			cusp::array1d<T,cusp::device_memory> HOLDERTMP(this->nEq);
 
 
+			// Variables
+			T alpha0, alpha0_hat, alpha1, prod, xiold, dtSum, coeff, xistar_inv, xi_inv, xi;
+
 			if(this->nist == 0) {
 
 				// Initialize the time step
@@ -226,7 +256,7 @@ namespace NumericalSolver {
 			/***************************
 			 * LOOP FOR INTERNAL STEPS *
 			 **************************/
-			while(1) {
+			while(this->t < tmax) {
 
 				std::cout << std::endl;
 				std::cout << std::endl;
@@ -279,9 +309,14 @@ namespace NumericalSolver {
 									lpolyColumns[i] = (T) 0.0;
 								}	
 								lpolyColumns[2] = (T) 1.0;
-								T alpha0, alpha1, prod, xiold, xi = (T) 1.0;
-								alpha0 *= -1.0;
-								T dtSum = this->dtNext;
+
+								alpha0 = -1.0;
+								alpha1 = 1.0;
+								prod = 1.0;
+								xiold = 1.0;
+								xi = (T) 0.0;
+								dtSum = this->dtNext;
+
 								if( q > 1 ) {
 									for(int j = 1; j<q;j++) {
 										dtSum += dptr_pdt[j];
@@ -289,13 +324,13 @@ namespace NumericalSolver {
 										prod *= xi;
 										alpha0 -= (T)(1.0)/((T)(j+1));
 										alpha1 += (T)(1.0)/xi;
-										for(int i = 0; i>= 2;i--) {
+										for(int i = j+2; i>= 2;i--) {
 											lpolyColumns[i] = lpolyColumns[i]*xiold + lpolyColumns[i-1];
 										}
 										xiold = xi;
 									}
 								}	
-								T coeff = (-alpha0-alpha1) / prod;
+								coeff = (-alpha0-alpha1) / prod;
 								// indx_acor in CVODE is always equal to qmax... go figure.
 								thrust::transform(dptr_ZN + (this->q+1)*this->nEq, dptr_ZN + (this->q+2)*this->nEq,dptr_ZN + (BDFsolver<T>::QMAX())*this->nEq, scalar_functor<T>(coeff));
 								for(int j = 2; j<=q; j++) {
@@ -303,11 +338,47 @@ namespace NumericalSolver {
 									thrust::transform(dptr_ZN + (this->q+1)*this->nEq, dptr_ZN + (this->q + 2)*this->nEq,YTMP.begin(),scalar_functor<T>(lpolyColumns[j]));
 									thrust::transform(YTMP.begin(), YTMP.end(),dptr_ZN + j*this->nEq, dptr_ZN + j*this->nEq, thrust::plus<T>());
 								}
+								
+								/*
+								if( this->nist == 357) {
+									std::cout << std::endl;
+									std::cout << "Nordsieck after order change" << std::endl;
+									for(int j = 0;j<BDFsolver<T>::LMAX();j++) {
+										std::cout << "J=" << j << std::endl;
+										for(int i=0;i<this->nEq;i++) 
+											std::cout << *(dptr_ZN +j*this->nEq + i) << std::endl;
+									}
+								}
+								*/
 							break;
 							
 							case -1 :
-
-
+								for(int i = 0; i < BDFsolver<T>::LMAX(); i++) {
+									lpolyColumns[i] = (T) 0.0;
+								}	
+								lpolyColumns[2] = (T) 1.0;
+								dtSum = (T)0.0;
+								for(int j = 1; j<q-1;j++) {
+									dtSum += dptr_pdt[j];
+									xi = dtSum/dtNext;
+									for(int i = j+2; i>1;i--) {
+										lpolyColumns[i] = lpolyColumns[i]*xiold + lpolyColumns[i-1];
+									}
+								}	
+								for(int j = 2; j<q; j++) {
+									// FIXME: Use zip or CUBLAS for AXPY 
+									thrust::transform(dptr_ZN + (this->q+1)*this->nEq, dptr_ZN + (this->q + 2)*this->nEq,YTMP.begin(),scalar_functor<T>(lpolyColumns[j]));
+									thrust::transform(YTMP.begin(), YTMP.end(),dptr_ZN + j*this->nEq, dptr_ZN + j*this->nEq, thrust::plus<T>());
+								}
+								if( this->nist == 357) {
+									std::cout << std::endl;
+									std::cout << "Nordsieck after order change" << std::endl;
+									for(int j = 0;j<BDFsolver<T>::LMAX();j++) {
+										std::cout << "J=" << j << std::endl;
+										for(int i=0;i<this->nEq;i++) 
+											std::cout << *(dptr_ZN +j*this->nEq + i) << std::endl;
+									}
+								}	
 
 							break;
 						}	
@@ -320,13 +391,27 @@ namespace NumericalSolver {
 
 					//// CVRescale
 					// Scale the Nordsieck array based on new dt
-					T coeff = this->eta;
+					coeff = this->eta;
 					for(int j = 1;j<=q;j++) {
 						thrust::transform(dptr_ZN + j*this->nEq, dptr_ZN + (j+1)*this->nEq,dptr_ZN + j*this->nEq, scalar_functor<T>(coeff));
 						coeff *= this->eta;
 					}	
 					this->dt  = this->dt*this->eta;
 					this->dtNext = this->dt;
+					std::cout << std::endl;
+					std::cout << "eta = " << this->eta << "\t dt_new = " << this->dt << "\t q = " << this->q << std::endl;
+
+					/*
+					if( this->nist == 357) {
+						std::cout << std::endl;
+						std::cout << "Nordsieck after step change" << std::endl;
+						for(int j = 0;j<BDFsolver<T>::LMAX();j++) {
+							std::cout << "J=" << j << std::endl;
+							for(int i=0;i<this->nEq;i++) 
+								std::cout << *(dptr_ZN +j*this->nEq + i) << std::endl;
+						}
+					}*/	
+
 				}	
 							
 
@@ -337,6 +422,8 @@ namespace NumericalSolver {
 				//// 1. Make a prediction
 				// 1.1 Update current time
 				this->t += this->dt;
+				std::cout << std::endl;
+				std::cout << "Time = " << this->t << std::endl;
 				// 1.2 Apply Nordsieck prediction : ZN_0 = ZN_n-1 * A(q)
 				// Use the logic from CVODE
 				for(int k = 1; k <= q; k++) { 
@@ -381,11 +468,11 @@ namespace NumericalSolver {
 
 				//thrust::fill(dptr_dtSum,dptr_dtSum+neq,dt);
 
-				T alpha0 = (T)(-1.0);
-				T alpha0_hat = (T)(-1.0);
-				T dtSum = dt;
-				T xistar_inv = (T)1.0;
-				T xi_inv = (T)1.0;
+				alpha0 = (T)(-1.0);
+				alpha0_hat = (T)(-1.0);
+				dtSum = dt;
+				xistar_inv = (T)1.0;
+				xi_inv = (T)1.0;
 				if( q > 1 ) {
 					for(int j = 2; j < q ; j++) {
 						// hsum <- hsum + tau[j-1]
@@ -412,7 +499,7 @@ namespace NumericalSolver {
 					// j = q
 					alpha0 -= 1.0/(T)q;
 					xistar_inv = -lpolyColumns[1]-alpha0;
-					dtSum += d_pdt[q-2];
+					dtSum += dptr_pdt[q-2];
 					dptr_xiInv[0] = dt/dtSum;
 					alpha0_hat = -lpolyColumns[1] - dt/dtSum;
 					for(int i = q; i>=1; i--) {

@@ -35,11 +35,11 @@ namespace NumericalSolver {
 		//	cusp::default_monitor<T> monitor(b,this->maxIter,this->relTol,this->absTol);
 		//	cusp::precond::aggregation::smoothed_aggregation<int, T, cusp::device_memory> M(A);
 //		        cusp::precond::diagonal<T, cusp::device_memory> M(A);
-		        cusp::precond::scaled_bridson_ainv<T, cusp::device_memory> M(A, .1);
+//		        cusp::precond::scaled_bridson_ainv<T, cusp::device_memory> M(A, .1);
 
 			std::cout << "INFO Starting GMRES..." << std::endl;
-//			cusp::krylov::gmres(A,x,b,this->restartIter,monitor);
-			cusp::krylov::gmres(A,x,b,this->restartIter,monitor,M);
+			cusp::krylov::gmres(A,x,b,this->restartIter,monitor);
+//			cusp::krylov::gmres(A,x,b,this->restartIter,monitor,M);
 		}	
 
 		template<typename T>

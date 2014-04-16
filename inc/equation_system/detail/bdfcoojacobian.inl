@@ -17,6 +17,14 @@
 
 namespace System {
 
+	template<typename T>
+	BDFcooJacobian<T>
+		::~BDFcooJacobian() {
+			cudaFree(this->d_jNodes);
+			cudaFree(this->d_jTerms);
+			cudaFree(this->d_jOffsetTerms);
+		}	
+
 // neq : total size of the functional
 	template<typename T>
 	BDFcooJacobian<T>

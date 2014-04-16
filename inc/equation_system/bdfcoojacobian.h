@@ -37,6 +37,7 @@ namespace System {
 			cusp::coo_matrix<int,T,cusp::device_memory> ID;
 
 		public:
+			~BDFcooJacobian();
 			BDFcooJacobian(const cooJacobian<T> &J,int nEq); 
 
  			__host__ virtual void evaluate(

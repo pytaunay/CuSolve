@@ -108,11 +108,7 @@ namespace NumericalSolver {
 			BDFsolver();
 		//	BDFsolver(const SystemFunctional<T> &F, const cooJacobian<T> &J); 
 			BDFsolver(const SystemFunctional<T> &F, const cooJacobian<T> &J, NonLinearSolver<T> *nlsolve, const cusp::array1d<T,cusp::device_memory> &Y0,const cusp::array1d<T,cusp::device_memory> &absTol); 
-			~BDFsolver() {
-				delete G;
-				delete H;
-				delete nlsolve;
-			}	
+			~BDFsolver(); 
 
 
 		void compute(const SystemFunctional<T> &F,
