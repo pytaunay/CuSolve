@@ -207,7 +207,7 @@ namespace System {
 			for (int i=0; i<num_leaves; i++){
 				tmp_nodes[i].constant     = this->constants[i];
 				tmp_nodes[i].kIdx         = (int) this->kInds[i];
-				tmp_nodes[i].yIdx1        = 0;
+				tmp_nodes[i].yIdx1        = 1;
 				tmp_nodes[i].yExp1        = 1.0;
 				tmp_nodes[i].yIdx2        = -1;
 				tmp_nodes[i].yExp2        = 1.0;
@@ -314,16 +314,20 @@ namespace System {
 			//fnt                *= tex1Dfetch(kTexJ, K_index);
 			fnt                *= d_kp[K_index];
 			//zero based indexing
-			if (node.yExp1 != 0)
+			if (node.yIdx1 != 0) {
 				fnt                *= pow(d_yp[node.yIdx1-1],node.yExp1);        
+			} else {
+				fnt *= 1.0;
+			}	
 			//	fnt                *= pow(tex1Dfetch(yTexJ, node.yIdx1-1),node.yExp1);        
 			if (node.yIdx2 != -1)
 				fnt                *= pow(d_yp[node.yIdx2-1],node.yExp2);        
 			//	fnt                *= pow(tex1Dfetch(yTexJ, node.yIdx2-1),node.yExp2);        
 	
-	//		printf("b : %i t: %i c: %f k: %i y1: %i e1: %f y2: %i e2: %f fnt : %f tr : %f y: %f\n",\
+	//	printf("b : %i t: %i c: %14.6e kidx: %d y1idx: %d e1: %f y2idx: %d e2: %f fnt : %14.6e k : %14.6e y: %14.6e\n",\
 	//		blockIdx.x,threadIdx.x,node.constant,node.kIdx,node.yIdx1,node.yExp1,node.yIdx2,\
-	//			node.yExp2, fnt, tex1Dfetch(kTexJ,node.kIdx-1), tex1Dfetch(yTexJ, node.yIdx1-1));
+	//			node.yExp2, fnt, d_kp[K_index], d_yp[node.yIdx1-1]);
+			//	node.yExp2, fnt, tex1Dfetch(kTexJ,node.kIdx-1), tex1Dfetch(yTexJ, node.yIdx1-1));
 
 		}
 

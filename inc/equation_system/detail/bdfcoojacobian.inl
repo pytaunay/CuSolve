@@ -64,7 +64,7 @@ namespace System {
 		for (int i=0; i<num_leaves; i++){
 			tmp_nodes[i].constant     = this->constants[i];
 			tmp_nodes[i].kIdx         = (int) this->kInds[i];
-			tmp_nodes[i].yIdx1        = 0;
+			tmp_nodes[i].yIdx1        = 1;
 			tmp_nodes[i].yExp1        = 1.0;
 			tmp_nodes[i].yIdx2        = -1;
 			tmp_nodes[i].yExp2        = 1.0;

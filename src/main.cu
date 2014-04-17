@@ -24,6 +24,7 @@
 
 using namespace NumericalSolver;
 
+
 template<typename T>
 struct abs_functor : public thrust::unary_function<T,T>
 {
@@ -215,15 +216,15 @@ int main() {
 	GMRES<double> *myLinearSolverD = new GMRES<double>(1e-30,1e-30);
 
 	// Create a non linear solver
-	NewtonRaphson<double> *myNonLinearSolverD = new NewtonRaphson<double>(myLinearSolverD,500,1e-8);
+	NewtonRaphson<double> *myNonLinearSolverD = new NewtonRaphson<double>(myLinearSolverD,500,1e-7);
 	BDFsolver<double> *myBdfSolverD = new BDFsolver<double>(*myFunctionalD,*myCooJacobianD,myNonLinearSolverD,YD,absTolD);	
 
-	std::cout << "STARTING SOLVER FOR T = 0.4" << std::endl;
-	myBdfSolverD->compute(*myFunctionalD,*myCooJacobianD,FvD,JvD,dD,YD,0.4);
+	std::cout << "STARTING SOLVER FOR T = 0.1" << std::endl;
+	myBdfSolverD->compute(*myFunctionalD,*myCooJacobianD,FvD,JvD,dD,YD,0.1);
 
 	double tlim;
-	for(int i = 0;i<11;i++) {
-		tlim = 4.0*pow(10.0,(double)i);
+	for(int i = 0;i<12;i++) {
+		tlim = 1.0*pow(10.0,(double)i);
 		std::cout << "STARTING SOLVER FOR T = " << tlim << std::endl;
 		myBdfSolverD->compute(*myFunctionalD,*myCooJacobianD,FvD,JvD,dD,YD,tlim);
 	}	

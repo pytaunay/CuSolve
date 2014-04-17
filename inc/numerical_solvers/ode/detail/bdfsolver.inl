@@ -185,6 +185,7 @@ namespace NumericalSolver {
 			thrust::fill( dptr_ZN, dptr_ZN + this->nEq*BDFsolver<T>::LMAX(), (T)0.0);
 
 
+			std::cout << "Initialization of the Nordsieck array..." << std::endl;
 			cusp::array1d<T,cusp::device_memory> FTMP(this->nEq);
 			F.evaluate(FTMP,Y0);
 			
@@ -192,6 +193,7 @@ namespace NumericalSolver {
 			
 			// ZN[0] = YN0
 			thrust::copy(Y0.begin(),Y0.end(),this->dptr_ZN);
+			std::cout << "... done" << std::endl;
 
 			//// Initialization of the integration tolerances
 			cudaMalloc((void**)&this->d_absTol,sizeof(T)*this->nEq);
@@ -235,17 +237,22 @@ namespace NumericalSolver {
 
 			// Variables
 			T alpha0, alpha0_hat, alpha1, prod, xiold, dtSum, coeff, xistar_inv, xi_inv, xi;
+			T A1,A2,A3,A4,A5,A6,C,Cpinv,Cppinv;
 
 			if(this->nist == 0) {
 
 				// Initialize the time step
+				std::cout << "Initialization of the time step ..." << std::endl;
 				initializeTimeStep(tmax,F);
+				std::cout << "... done" << std::endl;
 
 				// Scale zn[1] by the new time step
 				thrust::transform( dptr_ZN + this->nEq, dptr_ZN + 2*this->nEq, dptr_ZN+this->nEq,scalar_functor<T>(this->dt));
 
+				#ifdef __VERBOSE
 				for(int i=0;i<this->nEq;i++)
 					std::cout << *(dptr_ZN + this->nEq + i) << std::endl;
+				#endif	
 			}	
 
 
@@ -258,11 +265,13 @@ namespace NumericalSolver {
 			 **************************/
 			while(this->t < tmax) {
 
+				#ifdef __VERBOSE
 				std::cout << std::endl;
 				std::cout << std::endl;
 				std::cout << "**********" << std::endl;
 				std::cout << "ITERATION " << this->nist << std::endl; 
 				std::cout << "**********" << std::endl;
+				#endif
 
 
 				// Reset and check weights
@@ -276,10 +285,12 @@ namespace NumericalSolver {
 						dptr_weight,
 						eval_weights_functor<T>(this->relTol));
 
+					#ifdef __VERBOSE
 					std::cout << std::endl;
 					std::cout << "Weights" << std::endl;
 					for(int i=0;i<this->nEq;i++)
 						std::cout << "EWT[" << i << "] = " << dptr_weight[i] << std::endl;
+					#endif	
 
 
 					// Check
@@ -301,94 +312,81 @@ namespace NumericalSolver {
 					// Manage the order change
 					short dq = qNext - q;
 
-					if( qNext != q ) {
-						//// CVAdjustOrder
-						switch(dq) {
-							case 1 :
-								for(int i = 0; i < BDFsolver<T>::LMAX(); i++) {
-									lpolyColumns[i] = (T) 0.0;
-								}	
-								lpolyColumns[2] = (T) 1.0;
+					// If the order is 2, do not try to decrease it
+					if( q != 2 || dq == 1 ) {
+						if( qNext != q ) {
+							//// CVAdjustOrder
+							switch(dq) {
+								case 1 :
+									for(int i = 0; i < BDFsolver<T>::LMAX(); i++) {
+										lpolyColumns[i] = (T) 0.0;
+									}	
+									lpolyColumns[2] = (T) 1.0;
 
-								alpha0 = -1.0;
-								alpha1 = 1.0;
-								prod = 1.0;
-								xiold = 1.0;
-								xi = (T) 0.0;
-								dtSum = this->dtNext;
+									alpha0 = -1.0;
+									alpha1 = 1.0;
+									prod = 1.0;
+									xiold = 1.0;
+									xi = (T) 0.0;
+									dtSum = this->dtNext;
 
-								if( q > 1 ) {
-									for(int j = 1; j<q;j++) {
-										dtSum += dptr_pdt[j];
-										xi = dtSum/dtNext;
-										prod *= xi;
-										alpha0 -= (T)(1.0)/((T)(j+1));
-										alpha1 += (T)(1.0)/xi;
-										for(int i = j+2; i>= 2;i--) {
-											lpolyColumns[i] = lpolyColumns[i]*xiold + lpolyColumns[i-1];
+									if( q > 1 ) {
+										for(int j = 1; j<q;j++) {
+											dtSum += dptr_pdt[j];
+											xi = dtSum/dtNext;
+											prod *= xi;
+											alpha0 -= (T)(1.0)/((T)(j+1));
+											alpha1 += (T)(1.0)/xi;
+											for(int i = j+2; i>= 2;i--) {
+												lpolyColumns[i] = lpolyColumns[i]*xiold + lpolyColumns[i-1];
+											}
+											xiold = xi;
 										}
-										xiold = xi;
+									}	
+									coeff = (-alpha0-alpha1) / prod;
+									// indx_acor in CVODE is always equal to qmax... go figure.
+									// ZN[q+1] = coeff * ZN[QMAX]
+									thrust::transform(dptr_ZN + (BDFsolver<T>::QMAX())*this->nEq, 
+											  dptr_ZN + (BDFsolver<T>::QMAX()+1)*this->nEq,
+											  dptr_ZN + (this->q+1)*this->nEq, 
+											  scalar_functor<T>(coeff));
+
+									for(int j = 2; j<=q; j++) {
+										// FIXME: Use zip or CUBLAS for AXPY 
+										thrust::transform(dptr_ZN + (this->q+1)*this->nEq, dptr_ZN + (this->q + 2)*this->nEq,YTMP.begin(),scalar_functor<T>(lpolyColumns[j]));
+										thrust::transform(YTMP.begin(), YTMP.end(),dptr_ZN + j*this->nEq, dptr_ZN + j*this->nEq, thrust::plus<T>());
 									}
-								}	
-								coeff = (-alpha0-alpha1) / prod;
-								// indx_acor in CVODE is always equal to qmax... go figure.
-								thrust::transform(dptr_ZN + (this->q+1)*this->nEq, dptr_ZN + (this->q+2)*this->nEq,dptr_ZN + (BDFsolver<T>::QMAX())*this->nEq, scalar_functor<T>(coeff));
-								for(int j = 2; j<=q; j++) {
-									// FIXME: Use zip or CUBLAS for AXPY 
-									thrust::transform(dptr_ZN + (this->q+1)*this->nEq, dptr_ZN + (this->q + 2)*this->nEq,YTMP.begin(),scalar_functor<T>(lpolyColumns[j]));
-									thrust::transform(YTMP.begin(), YTMP.end(),dptr_ZN + j*this->nEq, dptr_ZN + j*this->nEq, thrust::plus<T>());
-								}
+								break;
 								
-								/*
-								if( this->nist == 357) {
-									std::cout << std::endl;
-									std::cout << "Nordsieck after order change" << std::endl;
-									for(int j = 0;j<BDFsolver<T>::LMAX();j++) {
-										std::cout << "J=" << j << std::endl;
-										for(int i=0;i<this->nEq;i++) 
-											std::cout << *(dptr_ZN +j*this->nEq + i) << std::endl;
+								case -1 :
+									for(int i = 0; i < BDFsolver<T>::LMAX(); i++) {
+										lpolyColumns[i] = (T) 0.0;
+									}	
+									lpolyColumns[2] = (T) 1.0;
+									dtSum = (T)0.0;
+									for(int j = 1; j<q-1;j++) {
+										dtSum += dptr_pdt[j-1];
+										xi = dtSum/dtNext;
+										for(int i = j+2; i>1;i--) {
+											lpolyColumns[i] = lpolyColumns[i]*xi + lpolyColumns[i-1];
+										}
+									}	
+									for(int j = 2; j<q; j++) {
+										// FIXME: Use zip or CUBLAS for AXPY 
+										// ZN[J] = -ZN[Q]*L[J] + ZN[J] 
+										thrust::transform(dptr_ZN + this->q*this->nEq, dptr_ZN + (this->q + 1)*this->nEq,YTMP.begin(),scalar_functor<T>(-1.0*lpolyColumns[j]));
+										thrust::transform(YTMP.begin(), YTMP.end(),dptr_ZN + j*this->nEq, dptr_ZN + j*this->nEq, thrust::plus<T>());
 									}
-								}
-								*/
-							break;
-							
-							case -1 :
-								for(int i = 0; i < BDFsolver<T>::LMAX(); i++) {
-									lpolyColumns[i] = (T) 0.0;
-								}	
-								lpolyColumns[2] = (T) 1.0;
-								dtSum = (T)0.0;
-								for(int j = 1; j<q-1;j++) {
-									dtSum += dptr_pdt[j-1];
-									xi = dtSum/dtNext;
-									for(int i = j+2; i>1;i--) {
-										lpolyColumns[i] = lpolyColumns[i]*xi + lpolyColumns[i-1];
-									}
-								}	
-								for(int j = 2; j<q; j++) {
-									// FIXME: Use zip or CUBLAS for AXPY 
-									// ZN[J] = -ZN[Q]*L[J] + ZN[J] 
-									thrust::transform(dptr_ZN + this->q*this->nEq, dptr_ZN + (this->q + 1)*this->nEq,YTMP.begin(),scalar_functor<T>(-1.0*lpolyColumns[j]));
-									thrust::transform(YTMP.begin(), YTMP.end(),dptr_ZN + j*this->nEq, dptr_ZN + j*this->nEq, thrust::plus<T>());
-								}
-								/*
-								if( this->nist == 357) {
-									std::cout << std::endl;
-									std::cout << "Nordsieck after order change" << std::endl;
-									for(int j = 0;j<BDFsolver<T>::LMAX();j++) {
-										std::cout << "J=" << j << std::endl;
-										for(int i=0;i<this->nEq;i++) 
-											std::cout << *(dptr_ZN +j*this->nEq + i) << std::endl;
-									}
-								}*/
-								std::cout<<std::endl;
-								std::cout << "Iteration " << this->nist << " decreased the order" << std::endl;
+									#ifdef __VERBOSE
+									std::cout<<std::endl;
+									std::cout << "Iteration " << this->nist << " decreased the order" << std::endl;
+									#endif
+								break;
+							}	
 
-							break;
-						}	
-
-						q = qNext;
-						qNextChange = q+1;
+							q = qNext;
+							qNextChange = q+1;
+						}
 					}
 
 
@@ -402,20 +400,11 @@ namespace NumericalSolver {
 					}	
 					this->dt  = this->dt*this->eta;
 					this->dtNext = this->dt;
+
+					#ifdef __VERBOSE
 					std::cout << std::endl;
 					std::cout << "eta = " << this->eta << "\t dt_new = " << this->dt << "\t q = " << this->q << std::endl;
-
-					/*
-					if( this->nist == 357) {
-						std::cout << std::endl;
-						std::cout << "Nordsieck after step change" << std::endl;
-						for(int j = 0;j<BDFsolver<T>::LMAX();j++) {
-							std::cout << "J=" << j << std::endl;
-							for(int i=0;i<this->nEq;i++) 
-								std::cout << *(dptr_ZN +j*this->nEq + i) << std::endl;
-						}
-					}*/	
-
+					#endif
 				}	
 							
 
@@ -426,8 +415,10 @@ namespace NumericalSolver {
 				//// 1. Make a prediction
 				// 1.1 Update current time
 				this->t += this->dt;
+				#ifdef __VERBOSE
 				std::cout << std::endl;
 				std::cout << "Time = " << this->t << std::endl;
+				#endif
 				// 1.2 Apply Nordsieck prediction : ZN_0 = ZN_n-1 * A(q)
 				// Use the logic from CVODE
 				for(int k = 1; k <= q; k++) { 
@@ -438,6 +429,7 @@ namespace NumericalSolver {
 					}
 				}	
 
+				#ifdef __VERBOSE
 				std::cout << std::endl;
 				std::cout << "Nordsieck prediction" << std::endl;
 				for(int j = 0;j<BDFsolver<T>::LMAX();j++) {
@@ -445,6 +437,7 @@ namespace NumericalSolver {
 					for(int i=0;i<this->nEq;i++) 
 						std::cout << *(dptr_ZN +j*this->nEq + i) << std::endl;
 				}		
+				#endif
 								
 
 				//// 2. Calculate L polynomial and other data
@@ -464,13 +457,6 @@ namespace NumericalSolver {
 						lpolyColumns[i] = (T) 0.0;
 					}	
 				}	
-
-				std::cout << std::endl;
-				std::cout << "lpolyColumns" << std::endl;
-				for(int i = 0;i<BDFsolver<T>::LMAX();i++)
-					std::cout << "l[" << i << "] = " << lpolyColumns[i] << std::endl;
-
-				//thrust::fill(dptr_dtSum,dptr_dtSum+neq,dt);
 
 				alpha0 = (T)(-1.0);
 				alpha0_hat = (T)(-1.0);
@@ -506,7 +492,15 @@ namespace NumericalSolver {
 						
 				}
 				
+				#ifdef __VERBOSE
+				std::cout << std::endl;
+				std::cout << "lpolyColumns" << std::endl;
+				for(int i = 0;i<BDFsolver<T>::LMAX();i++)
+					std::cout << "l[" << i << "] = " << lpolyColumns[i] << std::endl;
+				#endif	
+
 				// Set the coefficients for the control of estimated local error
+				/*
 				T tmp1 = 1.0 - alpha0_hat + alpha0;
 				dptr_coeffCtrlEstErr[2] = abs( tmp1/(alpha0*(1.0+q*tmp1)));
 				dptr_coeffCtrlEstErr[5] = abs( (1.0+q*tmp1)*xistar_inv / (lpolyColumns[q]*xi_inv));
@@ -529,12 +523,37 @@ namespace NumericalSolver {
 				std::cout << "Error control" << std::endl;
 				for(int i = 0;i<BDFsolver<T>::LMAX();i++)
 					std::cout << dptr_coeffCtrlEstErr[i] << std::endl;
-
-
+				*/
+				A1 = 1.0 - alpha0_hat + alpha0;
+				A2 = 1.0 + (T)q*A1;
+				dptr_coeffCtrlEstErr[2] = abs(A1/(alpha0*A2));
+				dptr_coeffCtrlEstErr[5] = abs(A2*xistar_inv/(lpolyColumns[q]*xi_inv));
+				if( this->qNextChange == 1) {
+					if( q > 1 ) {
+						C = xistar_inv / lpolyColumns[q];
+						A3 = alpha0 + 1.0/((T)q);
+						A4 = alpha0_hat + xi_inv;
+						Cpinv = (1.0-A4+A3)/A3;
+						dptr_coeffCtrlEstErr[1] = abs(C*Cpinv);
+					} else {
+						dptr_coeffCtrlEstErr[1] = 1.0;
+					}
+					T dtSumtmp = dtSum + dptr_pdt[q-1];
+					xi_inv = dt/dtSumtmp;
+					A5 = alpha0 - (1.0/((T)(q+1)));
+					A6 = alpha0_hat - xi_inv;
+					Cppinv = (1.0 - A6 + A5)/A2;
+					dptr_coeffCtrlEstErr[3] = abs(Cppinv/(xi_inv*A5*((T)(q+2))));
+				}	
+				#ifdef __VERBOSE
+				std::cout << std::endl;
+				std::cout << "Error control" << std::endl;
+				for(int i = 0;i<BDFsolver<T>::LMAX();i++)
+					std::cout << dptr_coeffCtrlEstErr[i] << std::endl;
+				#endif	
 
 				// gamma = h/l1
 				T gamma = this->dt/lpolyColumns[1]; 
-
 
 				// 3. Non linear solver
 				// Set delta to 0
@@ -545,17 +564,21 @@ namespace NumericalSolver {
 
 				// Set constants in G and H	
 				thrust::transform(this->dptr_ZN + this->nEq, this->dptr_ZN + 2*this->nEq, YTMP.begin(),scalar_functor<T>((T)1.0/lpolyColumns[1])); // YTMP = ZN[1] / l1 
+				#ifdef __VERBOSE
 				std::cout << std::endl;
 				std::cout << "YTMP = ZN[1]/l[1]" << std::endl;
 				for(int i = 0; i < YTMP.size();i++)
 					std::cout << "YTMP[" << i << "] = " << YTMP[i] << std::endl;
+				#endif	
 
 				thrust::transform(YTMP.begin(),YTMP.end(),this->dptr_ZN,YTMP.begin(),thrust::minus<T>()); // YTMP = YTMP - ZN[0]
 
+				#ifdef __VERBOSE
 				std::cout << std::endl;
 				std::cout << "YTMP = ZN[1]/l[1] - ZN[0]" << std::endl;
 				for(int i = 0; i < YTMP.size();i++)
 					std::cout << "YTMP[" << i << "] = " << YTMP[i] << std::endl;
+				#endif	
 
 				this->G->setConstants(gamma,YTMP);
 				this->H->setConstants(gamma);
@@ -571,10 +594,12 @@ namespace NumericalSolver {
 				thrust::transform(Y.begin(),Y.end(),this->dptr_ZN,YTMP.begin(),thrust::minus<T>());
 				T *en = thrust::raw_pointer_cast(YTMP.data());
 
+				#ifdef __VERBOSE
 				std::cout << std::endl;
 				std::cout << "Yn- Yn0 = Y - ZN[0]" << std::endl;
 				for(int i = 0;i<this->nEq;i++)
 					std::cout << "EN[" << i << "] = " << YTMP[i] << " = " << Y[i] << " - " << dptr_ZN[i] << std::endl;
+				#endif	
 				
 				// Obtain RMS norm of the error
 				// FIXME: remove temporary arrays...
@@ -601,19 +626,9 @@ namespace NumericalSolver {
 					dptr_pdt[1] = dptr_pdt[0];
 				dptr_pdt[0] = dt;	
 
-				// Is it time for an order change ? 
-				this->qNextChange--;
-				if( (this->qNextChange == 1) && (this->q != BDFsolver<T>::QMAX()) ) {
-					// Copy error into zn[qmax]
-					thrust::copy(en,en+this->nEq,dptr_ZN + BDFsolver<T>::QMAX()*this->nEq);
-					// Save previous tq5
-					dptr_pcoeffCtrlEstErr[5] = dptr_coeffCtrlEstErr[5];
-
-				}	
 
 				//// 2. Apply correction
 				// ZN[j] = ZN[j] + en * l[j], w/ en being Yn - Yn0
-
 				T pj;
 				for(int j = 0; j <= q; j++) { 
 					pj = lpolyColumns[j];
@@ -623,7 +638,18 @@ namespace NumericalSolver {
 							en, 1,
 							d_ZN+j*this->nEq, 1); 
 				}			
-				
+
+				//// 3. Is it time for an order change ? 
+				this->qNextChange--;
+				if( (this->qNextChange == 1) && (this->q != BDFsolver<T>::QMAX()) ) {
+					// Copy error into zn[qmax]
+					thrust::copy(en,en+this->nEq,dptr_ZN + BDFsolver<T>::QMAX()*this->nEq);
+					// Save previous tq5
+					dptr_pcoeffCtrlEstErr[5] = dptr_coeffCtrlEstErr[5];
+				}	
+
+						
+				#ifdef __VERBOSE
 				std::cout << std::endl;
 				std::cout << "Nordsieck after correction" << std::endl;
 				for(int j = 0;j<BDFsolver<T>::LMAX();j++) {
@@ -631,6 +657,7 @@ namespace NumericalSolver {
 					for(int i=0;i<this->nEq;i++) 
 						std::cout << *(dptr_ZN +j*this->nEq + i) << std::endl;
 				}		
+				#endif
 
 				/*
 				 * Prepare next step
@@ -641,6 +668,7 @@ namespace NumericalSolver {
 
 				if( this->qNextChange != 0 ) {
 					this->eta = this->etaq;
+					this->qNext = this->q;
 				// Try a change in order
 				} else {
 					this->qNextChange = 2;
@@ -656,10 +684,12 @@ namespace NumericalSolver {
 					this->etaqp1 = 0.0;
 					if(this->q != BDFsolver<T>::QMAX() ) {
 						
+						#ifdef __VERBOSE
 						std::cout << std::endl;
 						std::cout << "Previous dt values" << std::endl;
 						for(int i = 0;i<BDFsolver<T>::LMAX();i++)
 							std::cout << "TAU[" << i << "] = " << dptr_pdt[i] << std::endl;
+						#endif	
 
 
 						T coeff = (dptr_coeffCtrlEstErr[5]/dptr_pcoeffCtrlEstErr[5])*(pow(dt/dptr_pdt[1],(T)(q+1)));
@@ -669,15 +699,18 @@ namespace NumericalSolver {
 						// YTMP still contains the error vector EN FIXME
 						thrust::transform(YTMP.begin(),YTMP.end(),HOLDERTMP.begin(),HOLDERTMP.begin(),thrust::plus<T>());
 
+						#ifdef __VERBOSE
 						std::cout << "Temp array" << std::endl;
 						for(int i = 0;i<this->nEq;i++)
 							std::cout << "HTMP[" << i << "] = " << HOLDERTMP[i] << std::endl;
+						#endif	
 
 
 						eRmsNorm = weightedRMSnorm(HOLDERTMP,this->dptr_weight);	
 						this->etaqp1 = 1.0/( pow(10.0*eRmsNorm*dptr_coeffCtrlEstErr[3], 1.0/(T)(q+2)) + constants::EPS );
 					}
 				
+					//// CVChooseEta
 					// Choose the largest eta
 					T mxEta = max(this->etaqm1,max(this->etaq,this->etaqp1));
 					if(mxEta < BDFsolver<T>::THRESHOLD() ) {
@@ -688,8 +721,7 @@ namespace NumericalSolver {
 						this->eta = this->etaqp1;
 						this->qNext = this->q + 1;
 						// Store the error in zn[qmax] FIXME YTMP
-						for(int i = 0;i<this->nEq;i++)
-							*(dptr_ZN + BDFsolver<T>::QMAX()*this->nEq + i) = YTMP[i];
+						thrust::copy(YTMP.begin(),YTMP.end(),dptr_ZN + BDFsolver<T>::QMAX()*this->nEq);
 					} else if (mxEta == this->etaqm1 ) {	
 						// Decrease order
 						this->eta = this->etaqm1;
@@ -699,7 +731,10 @@ namespace NumericalSolver {
 						this->eta = this->etaq;
 						this->qNext = this->q;
 					}	
+					// End CVChooseEta
 				}
+
+				//// CVSetEta
 				if( this->eta < BDFsolver<T>::THRESHOLD() ) {
 					this->eta = (T)1.0;
 					this->dtNext = this->dt;
@@ -710,10 +745,44 @@ namespace NumericalSolver {
 				}
 				// Set the next timestep
 				this->dtNext = this->dt * this->eta;
+				// CVSetEta end
 	
 				// Adjust etamax to 10
 				this->etamx = 10.0;
-				// Scale error array
+			}	
+
+
+
+			//// OUTPUT SOLUTION
+			// Interpolation if overshoot
+			if(this->t > tmax) {
+				T dts = (tmax-this->t)/this->dt;
+				for(int j = this->q; j>=0;j--) {
+					C = (T)1.0;
+					for(int i = j; i >= j+1; i--)
+						C *= i;
+					
+					if(j==q) {
+						thrust::transform( dptr_ZN + q*nEq,
+									dptr_ZN + (q+1)*nEq,
+									Y.begin(),
+									scalar_functor<T>(C));
+					} else {
+						// dts * Y
+						thrust::transform( Y.begin(), Y.end(), YTMP.begin(),scalar_functor<T>(dts));
+						// C*ZN[j]
+						thrust::transform( dptr_ZN + j*nEq, dptr_ZN + (j+1)*nEq, Y.begin(),scalar_functor<T>(C));
+						// C*ZN[j] + dts * Y
+						thrust::transform( Y.begin(), Y.end(), YTMP.begin(), Y.begin(), thrust::plus<T>());
+					}
+				}
+			}	
+
+			// Print solution
+			std::cout << std::endl;
+			std::cout << "SOLUTION AT T = " << tmax << std::endl;
+			for(int i = 0;i<nEq;i++) {
+				std::cout << "Y[" << i << "] = " << Y[i] << std::endl;
 			}	
 		}
 
@@ -854,28 +923,6 @@ namespace NumericalSolver {
 
 				return tmp;
 			}
-
-
-/*
-	template<typename T>
-	T BDFsolver<T>
-		::upperBoundFirstTimeStep(int nEq) {
-
-			T test;
-			test = thrust::transform_reduce(
-				thrust::make_zip_iterator(thrust::make_tuple(dptr_ZN, dptr_ZN + nEq, dptr_absTol)),
-				thrust::make_zip_iterator(thrust::make_tuple(dptr_ZN + nEq, dptr_ZN + 2*nEq, dptr_absTol + nEq)),
-				dt0_upper_bound<T>(this->relTol),
-				(T)0,
-				thrust::maximum<T>());
-			
-
-							
-			return test;				
-			//dt_ub = BDFsolver<T>::DT_UB_FACTOR() * abs(this->t - tout); 
-
-		}
-*/
 
 	template<>
 	void axpyWrapper<float>(cublasHandle_t &handle,

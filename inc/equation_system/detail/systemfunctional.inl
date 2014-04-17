@@ -59,7 +59,6 @@ namespace System {
 		this->maxElements=INT_MIN;
 		this->maxTermSize=INT_MIN;
 
-//		while(getline(cin, input)){
 		std::cout << "The file for the equations is ... " << equations_file << std::endl;
 		ifile.open(equations_file,std::ifstream::in);
 		while(getline(ifile, input)){
