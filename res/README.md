@@ -11,7 +11,7 @@ The system:
 
 Initial values:
 
-![roberts_iv](http://www.sciweavers.org/tex2img.php?eq=Y_%7B0%7D%20%3D%20%5Cleft%28%20%5Cbegin%7Barray%7D%7Bc%7D%0A1%5C%5C%0A0%5C%5C%0A0%20%5Cend%7Barray%7D%20%5Cright%29&bc=White&fc=Black&im=jpg&fs=12&ff=arev&edit=0)
+![roberts_iv](https://github.com/pytaunay/CuSolve/blob/master/res/roberts/images/iv.png "Initial values")
 
 Time span:
 
