@@ -15,7 +15,6 @@
 // CUSP
 #include <cusp/detail/matrix_base.h>
 
-
 #include <numerical_solvers/ode/odesolver.h>
 
 #include <equation_system/systemjacobian.h>
@@ -23,7 +22,6 @@
 
 #include <equation_system/bdfjacobian.h>
 #include <equation_system/bdffunctional.h>
-
 #include <equation_system/bdfcoojacobian.h>
 
 namespace NumericalSolver {
@@ -135,32 +133,7 @@ namespace NumericalSolver {
 				
 
 	};
-
-
-
-	// AXPY wrapper
-	template<typename T>
-	void axpyWrapper(cublasHandle_t &handle,
-			int n,
-			const T *alpha,
-			const T *X,int incx,
-			T *Y, int incy);
-
-	template<>
-	void axpyWrapper<float>(cublasHandle_t &handle,
-			int n,
-			const float *alpha,
-			const float *X,int incx,
-			float *Y, int incy);
-	template<>
-	void axpyWrapper<double>(cublasHandle_t &handle,
-			int n,
-			const double *alpha,
-			const double *X,int incx,
-			double *Y, int incy);
-
-
-
 }
 
 #include <numerical_solvers/ode/detail/bdfsolver.inl>
+

@@ -37,6 +37,15 @@ class square_functor : public thrust::unary_function<T,T> {
 	}
 };	
 
+template<typename T>
+class abs_functor : public thrust::unary_function<T,T> {
+	public:
+	__host__ __device__
+	T operator()(const T &x) {
+		return (x < 0.0 ? -x : x);
+	}
+};	
+
 
 		template<typename T>
 		NewtonRaphson<T>::
@@ -125,11 +134,15 @@ class square_functor : public thrust::unary_function<T,T> {
 					F.evaluate(Fv,Y);
 					thrust::transform(Fv.begin(),Fv.end(),Fv.begin(),thrust::negate<T>());
 
+					std::cout << "Iteration " << N+1 << "Functional: " << std::endl;
+					for(int i = 0; i<Fv.size();i++)
+						std::cout << "F[" << i << "]= " << Fv[i] << std::endl;
+				
+			//		tol = thrust::transform_reduce(Fv.begin(),Fv.end(),square_functor<T>(),(T)0.0,thrust::plus<T>());
+					tol = thrust::transform_reduce(Fv.begin(),Fv.end(),abs_functor<T>(),(T)0.0,thrust::maximum<T>());
 
-					tol = thrust::transform_reduce(Fv.begin(),Fv.end(),square_functor<T>(),(T)0.0,thrust::plus<T>());
 
-
-					tol = scale*std::sqrt(tol);
+//					tol = scale*std::sqrt(tol);
 					//tol = std::sqrt(tol);
 					std::cout << "Iteration " << N+1 << "\t Tolerance: " << tol << endl;
 

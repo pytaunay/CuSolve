@@ -9,6 +9,7 @@
 ///// STD
 #include <algorithm>
 #include <cmath>
+#include <iomanip>
 
 ///// CUDA
 #include <cuda.h>
@@ -20,6 +21,10 @@
 ///// CuSolve
 #include <equation_system/bdffunctional.h>
 #include <equation_system/bdfcoojacobian.h>
+
+#include <numerical_solvers/ode/bdfsolver.h>
+
+#include <utils/blas.h>
 
 namespace NumericalSolver {
 	
@@ -115,7 +120,6 @@ namespace NumericalSolver {
 		~BDFsolver() {
 			delete G;
 			delete H;
-			delete nlsolve;
 
 			cudaFree(d_ZN);
 			cudaFree(d_lpoly);
@@ -143,7 +147,7 @@ namespace NumericalSolver {
 			// At the first step, the BDF solver is equivalent to a backwards Euler (q=1)
 			this->q = 1;
 			this->qNext = 1;
-			this->relTol = 1e-4;
+			this->relTol = 1e-10;
 			this->qNextChange = this->q + 1;
 
 			this->nEq = F.getTerms().size();
@@ -205,6 +209,13 @@ namespace NumericalSolver {
 			this->dptr_weight = thrust::device_pointer_cast(d_weight);
 			evalWeights(Y0,absTol,dptr_weight);
 
+			#ifdef __VERBOSE
+			std::cout << std::endl;
+			std::cout << "Weights" << std::endl;
+			for(int i=0;i<this->nEq;i++)
+				std::cout << "EWT[" << i << "] = " << std::setprecision(20) << dptr_weight[i] << std::endl;
+			#endif	
+
 			//// Control of estimated local error
 			cudaMalloc((void**)&this->d_coeffCtrlEstErr,sizeof(T)*BDFsolver<T>::LMAX());
 			this->dptr_coeffCtrlEstErr = thrust::device_pointer_cast(d_coeffCtrlEstErr);
@@ -250,8 +261,10 @@ namespace NumericalSolver {
 				thrust::transform( dptr_ZN + this->nEq, dptr_ZN + 2*this->nEq, dptr_ZN+this->nEq,scalar_functor<T>(this->dt));
 
 				#ifdef __VERBOSE
+				std::cout << std::endl;
+				std::cout << "ZN[1]" << std::endl;
 				for(int i=0;i<this->nEq;i++)
-					std::cout << *(dptr_ZN + this->nEq + i) << std::endl;
+					std::cout << std::setprecision(20) << *(dptr_ZN + this->nEq + i) << std::endl;
 				#endif	
 			}	
 
@@ -289,7 +302,7 @@ namespace NumericalSolver {
 					std::cout << std::endl;
 					std::cout << "Weights" << std::endl;
 					for(int i=0;i<this->nEq;i++)
-						std::cout << "EWT[" << i << "] = " << dptr_weight[i] << std::endl;
+						std::cout << "EWT[" << i << "] = " << std::setprecision(20) << dptr_weight[i] << std::endl;
 					#endif	
 
 
@@ -425,7 +438,7 @@ namespace NumericalSolver {
 					for(int j = q; j >= k; j--) {
 						// ZN[j-1] = ZN[j] + ZN[j-1]
 						// Use CUBLAS
-						axpyWrapper(this->handle, this->nEq , (const T*)(&constants::ONE) , d_ZN + j*this->nEq, 1, d_ZN + (j-1)*this->nEq,1);
+						utils::axpyWrapper(this->handle, this->nEq , (const T*)(&constants::ONE) , d_ZN + j*this->nEq, 1, d_ZN + (j-1)*this->nEq,1);
 					}
 				}	
 
@@ -435,7 +448,7 @@ namespace NumericalSolver {
 				for(int j = 0;j<BDFsolver<T>::LMAX();j++) {
 					std::cout << "J=" << j << std::endl;
 					for(int i=0;i<this->nEq;i++) 
-						std::cout << *(dptr_ZN +j*this->nEq + i) << std::endl;
+						std::cout << std::setprecision(20) << *(dptr_ZN +j*this->nEq + i) << std::endl;
 				}		
 				#endif
 								
@@ -568,7 +581,7 @@ namespace NumericalSolver {
 				std::cout << std::endl;
 				std::cout << "YTMP = ZN[1]/l[1]" << std::endl;
 				for(int i = 0; i < YTMP.size();i++)
-					std::cout << "YTMP[" << i << "] = " << YTMP[i] << std::endl;
+					std::cout << "YTMP[" << i << "] = " << std::setprecision(20) << YTMP[i] << std::endl;
 				#endif	
 
 				thrust::transform(YTMP.begin(),YTMP.end(),this->dptr_ZN,YTMP.begin(),thrust::minus<T>()); // YTMP = YTMP - ZN[0]
@@ -577,7 +590,7 @@ namespace NumericalSolver {
 				std::cout << std::endl;
 				std::cout << "YTMP = ZN[1]/l[1] - ZN[0]" << std::endl;
 				for(int i = 0; i < YTMP.size();i++)
-					std::cout << "YTMP[" << i << "] = " << YTMP[i] << std::endl;
+					std::cout << "YTMP[" << i << "] = " << std::setprecision(20) << YTMP[i] << std::endl;
 				#endif	
 
 				this->G->setConstants(gamma,YTMP);
@@ -598,7 +611,7 @@ namespace NumericalSolver {
 				std::cout << std::endl;
 				std::cout << "Yn- Yn0 = Y - ZN[0]" << std::endl;
 				for(int i = 0;i<this->nEq;i++)
-					std::cout << "EN[" << i << "] = " << YTMP[i] << " = " << Y[i] << " - " << dptr_ZN[i] << std::endl;
+					std::cout << "EN[" << i << "] = " << std::setprecision(20) << YTMP[i] << " = " << Y[i] << " - " << dptr_ZN[i] << std::endl;
 				#endif	
 				
 				// Obtain RMS norm of the error
@@ -632,7 +645,7 @@ namespace NumericalSolver {
 				T pj;
 				for(int j = 0; j <= q; j++) { 
 					pj = lpolyColumns[j];
-					axpyWrapper(	handle, 
+					utils::axpyWrapper(	handle, 
 							this->nEq, 
 							&pj, 
 							en, 1,
@@ -924,32 +937,5 @@ namespace NumericalSolver {
 				return tmp;
 			}
 
-	template<>
-	void axpyWrapper<float>(cublasHandle_t &handle,
-			int n,
-			const float *alpha,
-			const float *X,int incx,
-			float *Y, int incy) {
-				cublasStatus_t stat;
-				stat = cublasSaxpy(handle,n,alpha,X,incx,Y,incy);
 
-				if( stat != CUBLAS_STATUS_SUCCESS) {
-					std::cout << "AXPY failed !" << std::endl;
-				}	
-			}	
-
-	template<>
-	void axpyWrapper<double>(cublasHandle_t &handle,
-			int n,
-			const double *alpha,
-			const double *X,int incx,
-			double *Y, int incy) {
-				cublasStatus_t stat;
-
-				stat = cublasDaxpy(handle,n,alpha,X,incx,Y,incy);
-
-				if( stat != CUBLAS_STATUS_SUCCESS) {
-					std::cout << "AXPY failed ! Error status: " << stat << std::endl;
-				}	
-			}	
 }

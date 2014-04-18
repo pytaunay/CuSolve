@@ -14,6 +14,8 @@
 #include <equation_system/clientp.hpp>
 #include <checks.cuh>
 
+#define fpe(x) (isnan(x) || isinf(x))
+
 /*\XXX TODO: Texture representation for doubles*/
 texture<float,1,cudaReadModeElementType> yTex;
 texture<float,1,cudaReadModeElementType> kTex;
@@ -397,12 +399,20 @@ namespace System {
 			fnt		*= d_kp[node.kIdx-1];
 			//zero based indexing
 			//fnt		*= pow((T)tex1Dfetch(yTex, node.yIdx1-1),node.yExp1);	
-			fnt		*= pow( d_yp[node.yIdx1-1],node.yExp1);	
+			if (node.yIdx1 != 0) {
+				fnt		*= pow( d_yp[node.yIdx1-1],node.yExp1);	
+			} else {
+				fnt *= 1.0;
+			}	
+
 			if (node.yIdx2 != -1)
 				fnt		*= pow( d_yp[node.yIdx2-1],node.yExp2);	
-	//		printf("b : %i t: %i c: %f k: %i y1: %i e1: %f y2: %i e2: %f fnt : %f tr : %f y: %f\n",\
-	//		blockIdx.x,threadIdx.x,node.constant,node.kIdx,node.yIdx1,node.yExp1,node.yIdx2,\
-	//			node.yExp2, fnt, tex1Dfetch(kTex,node.kIdx-1), tex1Dfetch(yTex, node.yIdx1-1));
+			if( blockIdx.x == 42 || blockIdx.x == 291 || blockIdx.x == 292) {
+			printf("b : %i t: %i c: %14.6e k: %i y1: %i e1: %f y2: %i e2: %f fnt : %14.6e tr : %14.6e y: %14.6e\n",\
+			blockIdx.x,threadIdx.x,node.constant,node.kIdx,node.yIdx1,node.yExp1,node.yIdx2,\
+				node.yExp2, fnt, d_kp[node.kIdx-1], d_yp[node.yIdx1-1]);
+			}	
+				//node.yExp2, fnt, tex1Dfetch(kTex,node.kIdx-1), tex1Dfetch(yTex, node.yIdx1-1));
 		}
 
 		scratch[threadIdx.x] = fnt;
