@@ -11,7 +11,7 @@ The system:
 
 Initial values:
 
-![roberts_iv](https://github.com/pytaunay/CuSolve/blob/master/res/roberts/images/iv.png "Initial values")
+![roberts_iv](https://github.com/pytaunay/CuSolve/blob/master/res/roberts/images/iv.png?raw=true "Initial values")
 
 Time span:
 
