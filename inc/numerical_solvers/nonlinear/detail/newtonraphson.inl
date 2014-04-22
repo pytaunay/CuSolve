@@ -26,6 +26,8 @@
 //#include <equation_system/systemjacobian.h>
 #include <equation_system/systemfunctional.h>
 
+//#include <utils/dbl2bin.h>
+
 namespace NumericalSolver {
 
 template<typename T>
@@ -85,16 +87,30 @@ class abs_functor : public thrust::unary_function<T,T> {
 				cusp::array1d<T,cusp::device_memory> &Y
 				)
 			{
+				T param, result;
+				int exp;
 				
 				T tol = (T)1.0;
 				// Evaluate the Jacobian and the functional for the first iteration; stores results in Fv and Jv
 				std::cout << std::endl;
-				for(int i = 0;i < Fv.size();i++)
-					std::cout << "Y[" << i << "] = " << Y[i] << std::endl;
+				for(int i = 0;i < Fv.size();i++) {
+					param = Y[i];
+					result = frexp(param,&exp);
+					std::cout << std::setprecision(20) << "Y[" << i << "] = " << Y[i] << std::endl; 
+				//	std::cout << "Y[" << i << "] = " << Y[i] << " = " << result << " * 2^"<< exp << " = " ;
+				//	utils::dbl2bin(param);
+				//	std::cout<<std::endl;
+				}	
 				F.evaluate(Fv,Y);
 				std::cout << std::endl;
-				for(int i = 0;i < Fv.size();i++)
-					std::cout << "F[" << i << "] = " << Fv[i] << std::endl;
+				for(int i = 0;i < Fv.size();i++) {
+					param = Fv[i];
+					result = frexp(param,&exp);
+					std::cout << std::setprecision(20) << "F[" << i << "] = " << Fv[i] << std::endl;
+				//	std::cout << "F[" << i << "] = " << Fv[i] << " = " << result << " * 2^" << exp << " = ";
+				//	utils::dbl2bin(param);
+				//	std::cout << std::endl;
+				}	
 
 				thrust::transform(Fv.begin(),Fv.end(),Fv.begin(),thrust::negate<T>());
 
@@ -113,7 +129,7 @@ class abs_functor : public thrust::unary_function<T,T> {
 					std::cout << "Solution of linear system J*d = -F" << std::endl;
 
 					for(int i = 0; i<d.size();i++)
-						std::cout << "d[" << i << "] = "<< d[i] << std::endl;
+						std::cout << std::setprecision(20) << "d[" << i << "] = "<< d[i] << std::endl;
 
 					// Update Y from delta: Y = Y + d/scale
 					// Apply scaling to d, in place
@@ -134,9 +150,15 @@ class abs_functor : public thrust::unary_function<T,T> {
 					F.evaluate(Fv,Y);
 					thrust::transform(Fv.begin(),Fv.end(),Fv.begin(),thrust::negate<T>());
 
-					std::cout << "Iteration " << N+1 << "Functional: " << std::endl;
-					for(int i = 0; i<Fv.size();i++)
-						std::cout << "F[" << i << "]= " << Fv[i] << std::endl;
+					std::cout << "Iteration " << N+1 << "\nFunctional: " << std::endl;
+					for(int i = 0; i<Fv.size();i++) {
+						param = Fv[i];
+						result = frexp(param,&exp);
+						std::cout << std::setprecision(20) << "F[" << i << "]= " << Fv[i] << std::endl;
+					//	std::cout << "F[" << i << "] = " << Fv[i] << " = " << result << " * 2^" << exp;
+					//	utils::dbl2bin(param);
+					//	std::cout << std::endl;
+					}	
 				
 			//		tol = thrust::transform_reduce(Fv.begin(),Fv.end(),square_functor<T>(),(T)0.0,thrust::plus<T>());
 					tol = thrust::transform_reduce(Fv.begin(),Fv.end(),abs_functor<T>(),(T)0.0,thrust::maximum<T>());

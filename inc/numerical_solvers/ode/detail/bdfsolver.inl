@@ -25,6 +25,7 @@
 #include <numerical_solvers/ode/bdfsolver.h>
 
 #include <utils/blas.h>
+//#include <utils/dbl2bin.h>
 
 namespace NumericalSolver {
 	
@@ -139,6 +140,10 @@ namespace NumericalSolver {
 	BDFsolver<T>::
 		BDFsolver(const SystemFunctional<T> &F, const cooJacobian<T> &J, NonLinearSolver<T> *nlsolve, const cusp::array1d<T,cusp::device_memory> &Y0, const cusp::array1d<T,cusp::device_memory> &absTol) {
 			
+
+			T result, param;
+			int exp;
+
 			this->nist = 0;
 			this->N = 1;
 			//this->neq = 1;
@@ -212,8 +217,14 @@ namespace NumericalSolver {
 			#ifdef __VERBOSE
 			std::cout << std::endl;
 			std::cout << "Weights" << std::endl;
-			for(int i=0;i<this->nEq;i++)
+			for(int i=0;i<this->nEq;i++) {
+				param = dptr_weight[i];
+				result = frexp(param, &exp);
 				std::cout << "EWT[" << i << "] = " << std::setprecision(20) << dptr_weight[i] << std::endl;
+//				std::cout << "EWT[" << i << "] = " << std::setprecision(15) << dptr_weight[i] << " = " << result << " * 2^" << exp << " = ";
+//				utils::dbl2bin(param);
+				std::cout << std::endl;
+			}	
 			#endif	
 
 			//// Control of estimated local error
@@ -245,6 +256,8 @@ namespace NumericalSolver {
 			thrust::device_ptr<T> dptr_pdt = thrust::device_pointer_cast(d_pdt);
 			cusp::array1d<T,cusp::device_memory> HOLDERTMP(this->nEq);
 
+			T param, result;
+			int exp;
 
 			// Variables
 			T alpha0, alpha0_hat, alpha1, prod, xiold, dtSum, coeff, xistar_inv, xi_inv, xi;
@@ -263,8 +276,14 @@ namespace NumericalSolver {
 				#ifdef __VERBOSE
 				std::cout << std::endl;
 				std::cout << "ZN[1]" << std::endl;
-				for(int i=0;i<this->nEq;i++)
+				for(int i=0;i<this->nEq;i++) { 
+					param = *(dptr_ZN + this->nEq + i);
+					result = frexp(param, &exp);
 					std::cout << std::setprecision(20) << *(dptr_ZN + this->nEq + i) << std::endl;
+					//std::cout << std::setprecision(15) << *(dptr_ZN + this->nEq + i) << " = " << result << " * 2^" << exp << " = ";
+					//utils::dbl2bin(param);
+					std::cout << std::endl;
+				}	
 				#endif	
 			}	
 
@@ -301,8 +320,14 @@ namespace NumericalSolver {
 					#ifdef __VERBOSE
 					std::cout << std::endl;
 					std::cout << "Weights" << std::endl;
-					for(int i=0;i<this->nEq;i++)
+					for(int i=0;i<this->nEq;i++) {
+						param = dptr_weight[i];
+						result = frexp(param,&exp);
 						std::cout << "EWT[" << i << "] = " << std::setprecision(20) << dptr_weight[i] << std::endl;
+					//	std::cout << "EWT[" << i << "] = " << std::setprecision(15) << dptr_weight[i] << " = " << result << " * 2^" << exp << " = ";
+//					utils::dbl2bin(param);
+					std::cout << std::endl;
+					}	
 					#endif	
 
 
@@ -447,8 +472,14 @@ namespace NumericalSolver {
 				std::cout << "Nordsieck prediction" << std::endl;
 				for(int j = 0;j<BDFsolver<T>::LMAX();j++) {
 					std::cout << "J=" << j << std::endl;
-					for(int i=0;i<this->nEq;i++) 
+					for(int i=0;i<this->nEq;i++) {
+						param = *(dptr_ZN + j*this->nEq + i);
+						result = frexp(param,&exp);
 						std::cout << std::setprecision(20) << *(dptr_ZN +j*this->nEq + i) << std::endl;
+						//std::cout << std::setprecision(15) << *(dptr_ZN +j*this->nEq + i) << " = " << result << " * 2^" << exp << " = ";
+						//utils::dbl2bin(param);
+						//std::cout << std::endl;
+					}	
 				}		
 				#endif
 								
@@ -580,8 +611,14 @@ namespace NumericalSolver {
 				#ifdef __VERBOSE
 				std::cout << std::endl;
 				std::cout << "YTMP = ZN[1]/l[1]" << std::endl;
-				for(int i = 0; i < YTMP.size();i++)
-					std::cout << "YTMP[" << i << "] = " << std::setprecision(20) << YTMP[i] << std::endl;
+				for(int i = 0; i < YTMP.size();i++) {
+					param = YTMP[i];
+					result = frexp(param,&exp);
+					std::cout << "YTMP[" << i << "] = " << std::setprecision(15) << YTMP[i] << std::endl;
+					//std::cout << "YTMP[" << i << "] = " << std::setprecision(15) << YTMP[i] << " = " << result << " * 2^" << exp << " = ";
+					//utils::dbl2bin(param);
+					//std::cout << std::endl;
+				}	
 				#endif	
 
 				thrust::transform(YTMP.begin(),YTMP.end(),this->dptr_ZN,YTMP.begin(),thrust::minus<T>()); // YTMP = YTMP - ZN[0]
@@ -589,8 +626,14 @@ namespace NumericalSolver {
 				#ifdef __VERBOSE
 				std::cout << std::endl;
 				std::cout << "YTMP = ZN[1]/l[1] - ZN[0]" << std::endl;
-				for(int i = 0; i < YTMP.size();i++)
+				for(int i = 0; i < YTMP.size();i++) {
+					param = YTMP[i];
+					result = frexp(param,&exp);
 					std::cout << "YTMP[" << i << "] = " << std::setprecision(20) << YTMP[i] << std::endl;
+					//std::cout << "YTMP[" << i << "] = " << std::setprecision(15) << YTMP[i] << " = " << result << " * 2^" << exp << " = ";
+					//utils::dbl2bin(param);
+					//std::cout << std::endl;
+				}	
 				#endif	
 
 				this->G->setConstants(gamma,YTMP);
@@ -610,8 +653,14 @@ namespace NumericalSolver {
 				#ifdef __VERBOSE
 				std::cout << std::endl;
 				std::cout << "Yn- Yn0 = Y - ZN[0]" << std::endl;
-				for(int i = 0;i<this->nEq;i++)
-					std::cout << "EN[" << i << "] = " << std::setprecision(20) << YTMP[i] << " = " << Y[i] << " - " << dptr_ZN[i] << std::endl;
+				for(int i = 0;i<this->nEq;i++) {
+					param = YTMP[i];
+					result = frexp(param,&exp);
+					std::cout << "EN[" << i << "] = " << std::setprecision(20) << YTMP[i] << std::endl; 
+					//utils::dbl2bin(param);
+					//std::cout << std::endl;
+				//	std::cout << "EN[" << i << "] = " << std::setprecision(15) << YTMP[i] << " = " << Y[i] << " - " << dptr_ZN[i] << std::endl;
+				}	
 				#endif	
 				
 				// Obtain RMS norm of the error
@@ -795,7 +844,7 @@ namespace NumericalSolver {
 			std::cout << std::endl;
 			std::cout << "SOLUTION AT T = " << tmax << std::endl;
 			for(int i = 0;i<nEq;i++) {
-				std::cout << "Y[" << i << "] = " << Y[i] << std::endl;
+				std::cout << std::setprecision(20) << "Y[" << i << "] = " << Y[i] << std::endl;
 			}	
 		}
 

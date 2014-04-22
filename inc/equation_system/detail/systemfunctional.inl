@@ -407,11 +407,12 @@ namespace System {
 
 			if (node.yIdx2 != -1)
 				fnt		*= pow( d_yp[node.yIdx2-1],node.yExp2);	
-			if( blockIdx.x == 42 || blockIdx.x == 291 || blockIdx.x == 292) {
+		/*	if( blockIdx.x == 42 || blockIdx.x == 291 || blockIdx.x == 292) {
 			printf("b : %i t: %i c: %14.6e k: %i y1: %i e1: %f y2: %i e2: %f fnt : %14.6e tr : %14.6e y: %14.6e\n",\
 			blockIdx.x,threadIdx.x,node.constant,node.kIdx,node.yIdx1,node.yExp1,node.yIdx2,\
 				node.yExp2, fnt, d_kp[node.kIdx-1], d_yp[node.yIdx1-1]);
-			}	
+			}
+		*/	
 				//node.yExp2, fnt, tex1Dfetch(kTex,node.kIdx-1), tex1Dfetch(yTex, node.yIdx1-1));
 		}
 
@@ -445,23 +446,85 @@ namespace System {
 		if (threadIdx.x < 4)		scratch [ threadIdx.x ] 	+= scratch [ threadIdx.x + 4 ];
 		if (threadIdx.x < 2)		scratch [ threadIdx.x ] 	+= scratch [ threadIdx.x + 2 ];
 		if (threadIdx.x < 1)		scratch [ threadIdx.x ] 	+= scratch [ threadIdx.x + 1 ];
-/*
-		if(threadIdx.x == 0 && blockIdx.x == 0) {
-		
-		//	printf("Number of equations = %d\n",nbEq);
-			for(int i=0;i<nbEq;i++) {
-				printf("NODE %d:\n",i);
-				printf("Cst = %f\n",(d_fNodes)[i].constant);
-				printf("kIdx = %f\n",d_fNodes[i].kIdx);
-				printf("yIdx1 = %f\n",d_fNodes[i].yIdx1);
-				printf("yIdx2 = %f\n",d_fNodes[i].yIdx2);
-				printf("yExp1 = %f\n",d_fNodes[i].yExp1);
-				printf("yExp2 = %f\n",d_fNodes[i].yExp2);
-			}
-		}	
-*/
+
 		if (threadIdx.x == 0){
 			d_fp[blockIdx.x] 	= scratch[0];
 		}
 	} // End of SystemFunctional::k_evaluate()
+/*
+	template<typename T>
+	__global__ void 
+		k_FunctionalEvaluateDbl2(
+			T *d_fp,
+			const EvalNode<T> *d_fNodes,
+			const int *d_fTerms,
+			const int *d_fOffsetTerms,
+			T const* __restrict__ d_kp,
+			T const* __restrict__ d_yp,
+			int nbEq)	
+		{
+
+		__shared__ volatile double2 scratch[SHARED_BUF_SIZE];
+
+		//could use constant mem here
+		int index = d_fOffsetTerms[blockIdx.x];
+		int terms_this_function = d_fTerms[blockIdx.x];
+
+		T fnt = (T)0.0;
+
+		if (threadIdx.x<terms_this_function){
+			EvalNode<T> node = d_fNodes[index+threadIdx.x];
+
+			fnt		=  node.constant;
+			fnt		*= d_kp[node.kIdx-1];
+			if (node.yIdx1 != 0) {
+				fnt		*= pow( d_yp[node.yIdx1-1],node.yExp1);	
+			} else {
+				fnt *= 1.0;
+			}	
+
+			if (node.yIdx2 != -1)
+				fnt		*= pow( d_yp[node.yIdx2-1],node.yExp2);	
+		}
+
+		scratch[threadIdx.x] = fnt;
+
+		__syncthreads();
+
+		if (blockDim.x >= 256){
+			if (threadIdx.x < 128){
+				scratch [ threadIdx.x ] 	= dbl2add(scratch[threadIdx.x],scratch [ threadIdx.x + 128 ]);
+			}
+			__syncthreads();
+		}
+
+		if (blockDim.x >= 128){
+			if (threadIdx.x < 64){
+				scratch [ threadIdx.x ] 	= dbl2add(scratch[threadIdx.x],scratch [ threadIdx.x + 64 ]);
+			}
+			__syncthreads();
+		}
+
+		if (blockDim.x >= 64){
+			if (threadIdx.x < 32){
+				scratch [ threadIdx.x ] 	+= scratch [ threadIdx.x + 32 ];
+			}
+		}
+
+
+		if (threadIdx.x < 16) 		scratch [ threadIdx.x ] 	= dbl2add(scratch[threadIdx.x],scratch [ threadIdx.x + 16 ]);
+		if (threadIdx.x < 8)		scratch [ threadIdx.x ] 	= dbl2add(scratch[threadIdx.x],scratch [ threadIdx.x + 8 ]);
+		if (threadIdx.x < 4)		scratch [ threadIdx.x ] 	= dbl2add(scratch[threadIdx.x],scratch [ threadIdx.x + 4 ]);
+		if (threadIdx.x < 2)		scratch [ threadIdx.x ] 	= dbl2add(scratch[threadIdx.x],scratch [ threadIdx.x + 2 ]);
+		if (threadIdx.x < 1)		scratch [ threadIdx.x ] 	= dbl2add(scratch[threadIdx.x],scratch [ threadIdx.x + 1 ]);
+
+		if (threadIdx.x == 0){
+			d_fp[blockIdx.x] 	= scratch[0];
+		}
+	} // End of SystemFunctional::k_evaluate()
+*/
+
+
+
+
 }	
