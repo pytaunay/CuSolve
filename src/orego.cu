@@ -5,8 +5,9 @@
 
 using namespace NumericalSolver;
 
-void testCase_hires() {
-	SystemFunctional<double> *myFunctionalD = new SystemFunctional<double>("/gpfs/work/pzt5044/Github/CuSolve/res/hires/kvals.txt","/gpfs/work/pzt5044/Github/CuSolve/res/hires/equations.txt");
+
+void testCase_orego() {
+	SystemFunctional<double> *myFunctionalD = new SystemFunctional<double>("/gpfs/work/pzt5044/Github/CuSolve/res/orego/kvals.txt","/gpfs/work/pzt5044/Github/CuSolve/res/orego/equations.txt");
 	cooJacobian<double> *myCooJacobianD = new cooJacobian<double>(*myFunctionalD);
 
 	// Number of equations
@@ -23,7 +24,10 @@ void testCase_hires() {
 	vector<double> Yhost;
 
 	// Tolerances
-	cusp::array1d<double,cusp::device_memory> absTolD(nEq,1e-10);
+	cusp::array1d<double,cusp::device_memory> absTolD(nEq,0);
+	absTolD[0] = 1e-20;
+	absTolD[1] = 1e-20;
+	absTolD[2] = 1e-20;
 
 	cusp::coo_matrix<int,double,cusp::device_memory> JvD(nEq,nEq,nJac);
 
@@ -36,9 +40,9 @@ void testCase_hires() {
 			JvD.column_indices.begin());
 
 	// Initial values
-/*	bool success=false;
+	bool success=false;
 	string value;
-	ifstream ivfile("/gpfs/work/pzt5044/Github/CuSolve/res/hires/init.txt");
+	ifstream ivfile("/gpfs/work/pzt5044/Github/CuSolve/res/orego/init.txt");
 	if (ivfile.good()){
 		success=false;
 
@@ -53,27 +57,19 @@ void testCase_hires() {
 			throw std::invalid_argument( "loading of inital value data failed" );
 
 	}
-*/	
-	Yhost.push_back(1.0);
-	Yhost.push_back(0.0);
-	Yhost.push_back(0.0);
-	Yhost.push_back(0.0);
-	Yhost.push_back(0.0);
-	Yhost.push_back(0.0);
-	Yhost.push_back(0.0);
-	Yhost.push_back(0.0057);
-
 	thrust::copy(Yhost.begin(),Yhost.end(),YD.begin());
+
 
 	// Linear solver
 	GMRES<double> *myLinearSolverD = new GMRES<double>(1e-30,1e-30);
 
 	// Create a non linear solver
-	NewtonRaphson<double> *myNonLinearSolverD = new NewtonRaphson<double>(myLinearSolverD,500,1e-10);
+	NewtonRaphson<double> *myNonLinearSolverD = new NewtonRaphson<double>(myLinearSolverD,500,1e-8);
 	BDFsolver<double> *myBdfSolverD = new BDFsolver<double>(*myFunctionalD,*myCooJacobianD,myNonLinearSolverD,YD,absTolD);	
 
 	std::cout << "STARTING SOLVER" << std::endl;
-	myBdfSolverD->compute(*myFunctionalD,*myCooJacobianD,FvD,JvD,dD,YD,321.8122);
+	myBdfSolverD->compute(*myFunctionalD,*myCooJacobianD,FvD,JvD,dD,YD,360.0);
+
 
 /*
 	delete myBdfSolverD;

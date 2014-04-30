@@ -48,75 +48,6 @@ namespace NumericalSolver {
 	*/
 
 	template<typename T>
-	struct scalar_inv_functor : public thrust::binary_function<T,T,T>
-	{
-		const T a;
-
-		scalar_inv_functor(T _a): a(_a) {}
-
-		__host__ __device__
-		T operator()(const float&x) const {
-			return a/x;
-		}
-	};	
-
-	template<typename T>
-	struct square : public thrust::binary_function<T,T,T>
-	{
-		__host__ __device__
-		T operator()(const T &x) {
-			return x*x;
-		}
-	};	
-
-
-	template<typename T>
-	struct scalar_functor : public thrust::binary_function<T,T,T>
-	{
-		const T a;
-		scalar_functor(T _a) : a(_a) {}
-
-		__host__ __device__
-		T operator()(const T &x) const {
-			return a*x;
-		}
-	};	
-	
-	template<typename T>
-	struct dt0_upper_bound : public thrust::unary_function<thrust::tuple<T,T,T>,T>
-	{
-		const T relTol;
-		dt0_upper_bound(T _relTol) : relTol(_relTol) {}
-
-		__host__ __device__
-		T operator()(const thrust::tuple<T,T,T>& t) const {
-			return (abs ( thrust::get<1>(t) ) / ( (relTol+0.1) * abs(thrust::get<0>(t)) + thrust::get<2>(t)));
-		}
-	};	
-
-	template<typename T>
-	struct eval_weights_functor : public thrust::unary_function<thrust::tuple<T,T>,T>
-	{
-		const T relTol;
-		eval_weights_functor(T _relTol) : relTol(_relTol) {}
-			
-		__host__ __device__
-		T operator()(const thrust::tuple<T,T>& t) const {
-			return ( (T)1.0 / ( relTol * abs( thrust::get<0>(t) ) + thrust::get<1>(t) ) );
-		}
-	};	
-
-	template<typename T>
-	struct weighted_rms_functor : public thrust::unary_function<thrust::tuple<T,T>,T>
-	{
-		__host__ __device__
-		T operator()(const thrust::tuple<T,T>&t) const {
-			return ( thrust::get<0>(t)*thrust::get<0>(t)*thrust::get<1>(t)*thrust::get<1>(t) );
-		}
-	};	
-			
-
-	template<typename T>
 	BDFsolver<T>::
 		~BDFsolver() {
 			delete G;
@@ -159,20 +90,19 @@ namespace NumericalSolver {
 			this->etamx = 1e4;
 			this->dtMax = 0.0;
 			
-			// Allocate Nordsieck array: ZN = [ N x L ], for each ODE. L = Q+1
+			//// Allocate Nordsieck array: ZN = [ N x L ], for each ODE. L = Q+1
 			cudaMalloc( (void**)&this->d_ZN,sizeof(T)*BDFsolver<T>::LMAX()*this->nEq);
-			// L polynomial for correction. l = [ 1 x L ], for each ODE
+
+			//// L polynomial for correction. l = [ 1 x L ], for each ODE
 			cudaMalloc( (void**)&this->d_lpoly,sizeof(T)*BDFsolver<T>::LMAX() );
+			lpolyColumns = thrust::device_pointer_cast(d_lpoly);
+			thrust::fill(lpolyColumns,lpolyColumns+BDFsolver<T>::LMAX(),(T)0.0);
+
 			// Create the CUBLAS handle
 			cublasCreate(&this->handle);
 
 
-//			for(int i = 0; i< constants:: L_MAX; i++)
-//				lpolyColumns.push_back( thrust::device_pointer_cast(&d_lpoly[i*neq]));
-			lpolyColumns = thrust::device_pointer_cast(d_lpoly);
-			thrust::fill(lpolyColumns,lpolyColumns+BDFsolver<T>::LMAX(),(T)0.0);
-
-			// Create previous q+1 successful step sizes
+			//// Create previous q+1 successful step sizes
 			cudaMalloc( (void**)&this->d_pdt,sizeof(T)*BDFsolver<T>::LMAX());
 			cudaMalloc( (void**)&this->d_dtSum,sizeof(T));
 			cudaMalloc( (void**)&this->d_xiInv,sizeof(T));
@@ -221,8 +151,6 @@ namespace NumericalSolver {
 				param = dptr_weight[i];
 				result = frexp(param, &exp);
 				std::cout << "EWT[" << i << "] = " << std::setprecision(20) << dptr_weight[i] << std::endl;
-//				std::cout << "EWT[" << i << "] = " << std::setprecision(15) << dptr_weight[i] << " = " << result << " * 2^" << exp << " = ";
-//				utils::dbl2bin(param);
 				std::cout << std::endl;
 			}	
 			#endif	
@@ -286,11 +214,6 @@ namespace NumericalSolver {
 				}	
 				#endif	
 			}	
-
-
-
-
-
 
 			/***************************
 			 * LOOP FOR INTERNAL STEPS *
@@ -811,6 +734,14 @@ namespace NumericalSolver {
 	
 				// Adjust etamax to 10
 				this->etamx = 10.0;
+
+				// Print solution
+				std::cout << std::endl;
+				std::cout << "AT T = " << this->t << std::endl;
+				for(int i = 0;i<nEq;i++) {
+					std::cout << std::setprecision(20) << "Y[" << i << "] = " << Y[i] << std::endl;
+				}
+				std::cout << std::endl;
 			}	
 
 

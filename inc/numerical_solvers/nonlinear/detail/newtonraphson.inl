@@ -92,6 +92,7 @@ class abs_functor : public thrust::unary_function<T,T> {
 				
 				T tol = (T)1.0;
 				// Evaluate the Jacobian and the functional for the first iteration; stores results in Fv and Jv
+				#ifdef __VERBOSE
 				std::cout << std::endl;
 				for(int i = 0;i < Fv.size();i++) {
 					param = Y[i];
@@ -101,7 +102,11 @@ class abs_functor : public thrust::unary_function<T,T> {
 				//	utils::dbl2bin(param);
 				//	std::cout<<std::endl;
 				}	
+				#endif
+
 				F.evaluate(Fv,Y);
+
+				#ifdef __VERBOSE
 				std::cout << std::endl;
 				for(int i = 0;i < Fv.size();i++) {
 					param = Fv[i];
@@ -111,12 +116,16 @@ class abs_functor : public thrust::unary_function<T,T> {
 				//	utils::dbl2bin(param);
 				//	std::cout << std::endl;
 				}	
+				#endif
 
 				thrust::transform(Fv.begin(),Fv.end(),Fv.begin(),thrust::negate<T>());
 
 
 				J.evaluate(Jv,Y,F.getkData());
+
+				#ifdef __VERBOSE
 				cusp::print(Jv);
+				#endif
 
 				T scale = (T)1.0;
 //				cusp::array1d<T,cusp::device_memory> tmp(F.getTerms().size(),(T)(1.0)/scale);
@@ -128,8 +137,10 @@ class abs_functor : public thrust::unary_function<T,T> {
 
 					std::cout << "Solution of linear system J*d = -F" << std::endl;
 
+					#ifdef __VERBOSE
 					for(int i = 0; i<d.size();i++)
 						std::cout << std::setprecision(20) << "d[" << i << "] = "<< d[i] << std::endl;
+					#endif
 
 					// Update Y from delta: Y = Y + d/scale
 					// Apply scaling to d, in place
@@ -150,6 +161,7 @@ class abs_functor : public thrust::unary_function<T,T> {
 					F.evaluate(Fv,Y);
 					thrust::transform(Fv.begin(),Fv.end(),Fv.begin(),thrust::negate<T>());
 
+					#ifdef __VERBOSE
 					std::cout << "Iteration " << N+1 << "\nFunctional: " << std::endl;
 					for(int i = 0; i<Fv.size();i++) {
 						param = Fv[i];
@@ -159,6 +171,7 @@ class abs_functor : public thrust::unary_function<T,T> {
 					//	utils::dbl2bin(param);
 					//	std::cout << std::endl;
 					}	
+					#endif
 				
 			//		tol = thrust::transform_reduce(Fv.begin(),Fv.end(),square_functor<T>(),(T)0.0,thrust::plus<T>());
 					tol = thrust::transform_reduce(Fv.begin(),Fv.end(),abs_functor<T>(),(T)0.0,thrust::maximum<T>());
@@ -166,16 +179,20 @@ class abs_functor : public thrust::unary_function<T,T> {
 
 //					tol = scale*std::sqrt(tol);
 					//tol = std::sqrt(tol);
-					std::cout << "Iteration " << N+1 << "\t Tolerance: " << tol << endl;
+					std::cout << "\tIteration " << N+1 << "\t Tolerance: " << tol << endl;
 
 					// Break if tolerance is attained
 					if( tol < this->tol ) {
 						std::cout << "INFO Newton-Raphson converged ! Tolerance " << tol << " < " << this->tol << std::endl;
+						#ifdef __VERBOSE
 						std::cout << "INFO Solution " << std::endl;
 						cusp::print(Y);
 						std::cout << "INFO Final functional" << std::endl;
+						#endif
 						F.evaluate(Fv,Y);
+						#ifdef __VERBOSE
 						cusp::print(Fv);
+						#endif
 						break;
 					}	
 					

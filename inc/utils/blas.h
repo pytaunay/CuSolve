@@ -8,22 +8,36 @@
 
 #pragma once
 
+#include <iostream>
 #include <cublas_v2.h>
 
+namespace cusolve {
 namespace utils {
-	// AXPY wrapper
-	namespace { 		
+// AXPY wrapper
+namespace { 		
+	/**
+	 * \brief Wrapper for CUBLAS AXPY
+	 *
+	 * \param [in] handle CUBLAS handle
+	 * \param [in] n Total number of elements in each vector
+	 * \param [in] alpha Pointer to the scalar value in AXPY
+	 * \param [in] X Vector X
+	 * \param [in] incx Total stride between elements in X
+	 * \param [in] Y Vector Y
+	 * \param [in] incy Total stride between elements in Y
+	 */
 	template<typename T>
-	__host__ void axpyWrapper(cublasHandle_t &handle,
+	__host__ void axpy_wrapper(
+			cublasHandle_t &handle,
 			int n,
 			const T *alpha,
 			const T *X,int incx,
 			T *Y, int incy) {
-				std::cout << "ERROR: axpy only implemented for double and float types" << std::endl;
+				std::cout << "ERROR GPU AXPY only implemented for double and float types" << std::endl;
 			}	
 
 	template<>
-	__host__ void axpyWrapper<float>(cublasHandle_t &handle,
+	__host__ void axpy_wrapper<float>(cublasHandle_t &handle,
 			int n,
 			const float *alpha,
 			const float *X,int incx,
@@ -32,12 +46,12 @@ namespace utils {
 				stat = cublasSaxpy(handle,n,alpha,X,incx,Y,incy);
 
 				if( stat != CUBLAS_STATUS_SUCCESS) {
-					std::cout << "AXPY failed !" << std::endl;
+					std::cout << "ERROR GPU AXPY failed ! Error status: " << stat << std::endl;
 				}	
 			}	
 
 	template<>
-	__host__ void axpyWrapper<double>(cublasHandle_t &handle,
+	__host__ void axpy_wrapper<double>(cublasHandle_t &handle,
 			int n,
 			const double *alpha,
 			const double *X,int incx,
@@ -47,10 +61,9 @@ namespace utils {
 				stat = cublasDaxpy(handle,n,alpha,X,incx,Y,incy);
 
 				if( stat != CUBLAS_STATUS_SUCCESS) {
-					std::cout << "AXPY failed ! Error status: " << stat << std::endl;
+					std::cout << "ERROR GPU AXPY failed ! Error status: " << stat << std::endl;
 				}	
 			}	
-	}
-}
-
-//#include <utils/blas.inl>
+} // Anonymous namespace
+} // utils namespace
+} // cusolve namespace

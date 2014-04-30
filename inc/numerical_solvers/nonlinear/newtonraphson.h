@@ -24,9 +24,10 @@
 #include <numerical_solvers/nonlinear/nonlinearsolver.h>
 #include <numerical_solvers/linear/linearsolver.h>
 
-using namespace System;
 
 #include <iostream>
+
+using namespace System;
 
 namespace NumericalSolver {
 	/*!\class NewtonRaphson newtonraphson.h "inc/numerical_solvers/nonlinear/newtonraphson.h"
@@ -45,9 +46,9 @@ namespace NumericalSolver {
 	class NewtonRaphson : public NonLinearSolver<T> {
 
 		protected:
-			LinearSolver<T> *lsolve;
-			int maxIter; 
-			T tol;
+			LinearSolver<T> *lsolve; /*!< Generic pointer to a linear solver for the Newton-Raphson method */
+			int maxIter; /*!< Maximum number of iterations */ 
+			T tol; /*!< Tolerance */
 
 		public:
 			/*!\brief Default constructor

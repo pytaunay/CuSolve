@@ -16,8 +16,7 @@
 
 
 
-#ifndef __CHECKS_CUH_
-#define __CHECKS_CUH_
+#pragma once
 
 #include <cuda.h>
 
@@ -33,5 +32,4 @@ void inline cudaCheckError(const char* msg) {
 	}		
 
 }	
-#endif
 

@@ -32,10 +32,15 @@ int main() {
 
 
 	std::cout << "Starting Roberts test case ... " << std::endl;
-//	testCase_roberts();
+	testCase_roberts();
 	std::cout << "Starting HIRES test case ..." << std::endl;
-	testCase_hires();
+//	testCase_hires();
 
+	std::cout << "Starting Orego test case ..." << std::endl;
+//	testCase_orego();
+
+	std::cout << "Starting E5 test case ..." << std::endl;
+//	testCase_e5();
 
 	
 	return 0;
