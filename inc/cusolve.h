@@ -1,8 +1,6 @@
-#ifndef _CPPNS_HPP_
-#define _CPPNS_HPP_
+#pragma once
 
 #include <cuda.h>
 #include <cuda_runtime.h>
 
 
-#endif 

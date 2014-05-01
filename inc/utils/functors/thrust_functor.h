@@ -6,8 +6,6 @@
  *
  */
 
-//// Thrust
-
 namespace cusolve {
 namespace functor {
 	/**
@@ -17,7 +15,6 @@ namespace functor {
 	 *
 	 *
 	 */
-
 	template<typename T>
 	struct scalar_inv_functor : public thrust::binary_function<T,T,T>
 	{
@@ -196,5 +193,6 @@ namespace functor {
 			return ( thrust::get<0>(t)*thrust::get<0>(t)*thrust::get<1>(t)*thrust::get<1>(t) );
 		}
 	};	
+
 } // functor namespace
 } // cusolve namespace

@@ -1,5 +1,5 @@
 /**
- * @file bdfcoojacobian.h
+ * @file bdf_coo_jacobian.h
  * @author Pierre-Yves Taunay (py.taunay@psu.edu)
  * @date April, 2014
  * @brief Derived class from COO Jacobian to add more functionality for the BDF solver
@@ -7,6 +7,17 @@
  */
 
 #pragma once
+
+///// CUDA
+#include <cuda.h>
+
+//// CUSP
+#include <cusp/coo_matrix.h>
+#include <cusp/array1d.h>
+
+//// cusolve
+#include <equation_system/coo_jacobian.h>
+#include <equation_system/bdf_jacobian.h>
 
 namespace cusolve {
 	/*!\class bdf_coo_jacobian
@@ -23,7 +34,7 @@ namespace cusolve {
 	 *
 	 * Virtual inheritance is used to resolve the correct methods to use at compile time.
 	 *
-	 * \tparam T type
+	 * \tparam T Single / Double precision 
 	 */
 	template<typename T>
 	class bdf_coo_jacobian : virtual public coo_jacobian<T>, virtual public bdf_jacobian<T> {
@@ -87,7 +98,7 @@ namespace cusolve {
 			 *
 			 * \param[in] gamma The constant \f$ \gamma \f$
 			 */
-			__host__ void set_constants(const T &gamma);		
+			__host__ virtual void set_constants(const T &gamma);		
 
  			/**
 			 * \brief Method to reset the Jacobian to its original values 
@@ -96,7 +107,7 @@ namespace cusolve {
 			 *
 			 * \param[in] J User provided Jacobian 
 			 */
-			__host__ void reset_constants(const coo_jacobian<T> &J);
+			__host__ virtual void reset_constants(const coo_jacobian<T> &J);
 	};
 
 
@@ -110,4 +121,4 @@ namespace cusolve {
 
 } // end of namespace cusolve
 
-#include <equation_system/detail/bdfcoojacobian.inl>
+#include <equation_system/detail/bdf_coo_jacobian.inl>

@@ -1,5 +1,5 @@
 /**
- * @file bdfcoojacobian.inl
+ * @file bdf_coo_jacobian.inl
  * @author Pierre-Yves Taunay (py.taunay@psu.edu)
  * @date April, 2014
  * @brief Implementation of some methods for the derived class bdf_coo_jacobian 
@@ -8,7 +8,10 @@
 
 //// CUDA
 #include <cuda.h>
+
 // CUSP
+#include <cusp/coo_matrix.h>
+#include <cusp/array1d.h>
 #include <cusp/elementwise.h>
 
 // CuSolve
@@ -19,22 +22,7 @@ namespace cusolve {
 
 	template<typename T>
 	bdf_coo_jacobian<T>
-		::~bdf_coo_jacobian() {
-			
-			this->idxI.clear();
-			this->idxJ.clear();
-
-			this->terms.clear();
-			this->kInds.clear();
-			this->constants.clear();
-			this->jFull.clear();
-
-			this->maxElements = 0;
-
-			cudaFree(this->d_jNodes);
-			cudaFree(this->d_jTerms);
-			cudaFree(this->d_jOffsetTerms);
-		}	
+		::~bdf_coo_jacobian() {	}	
 
 	template<typename T>
 	bdf_coo_jacobian<T>
@@ -43,7 +31,7 @@ namespace cusolve {
 		this->idxI = J.get_idx_i();
 		this->idxJ = J.get_idx_j();
 		this->terms = J.get_terms();
-		this->kInds = J.get_kinds();
+		this->kInds = J.get_k_inds();
 		this->constants = J.get_constants();
 		this->jFull = J.get_jfull();
 
@@ -173,7 +161,7 @@ namespace cusolve {
 		const T *d_kp = thrust::raw_pointer_cast(d_kData.data());
 		
 		// Set up grid configuration
-		set_grid();
+		this->set_grid();
 
 		// Launch kernel
 		#ifdef VERBOSE
@@ -195,7 +183,7 @@ namespace cusolve {
 		int num_leaves = this->jFull.size();
 
 		// Grid configuration
-		set_grid();
+		this->set_grid();
 
 		// Kernel launch
 		k_bdf_coo_jacobian_set_constants<<<this->blocks_j,this->threads_j>>> (gamma,this->d_jNodes,this->d_jTerms,this->d_jOffsetTerms, num_leaves);
@@ -237,7 +225,7 @@ namespace cusolve {
 		int num_leaves = this->jFull.size();
 
 		// Set up grid configuration
-		set_grid();
+		this->set_grid();
 
 		// Kernel launch
 		k_bdf_coo_jacobian_reset_constants<<<this->blocks_j,this->threads_j>>> (J.get_nodes(),this->d_jNodes,this->d_jTerms,this->d_jOffsetTerms, num_leaves);
@@ -273,8 +261,3 @@ namespace cusolve {
 		
 
 }
-	
-
-
-
-

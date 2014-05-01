@@ -2,7 +2,7 @@
  * @file coojacobian.inl
  * @author Pierre-Yves Taunay (py.taunay@psu.edu)
  * @date November, 2013
- * @brief Implementation of the methods of the class cooJacobian
+ * @brief Implementation of the methods of the class coo_jacobian
  *
  */
 
@@ -19,38 +19,45 @@
 #include <thrust/device_ptr.h>
 
 //// CuSolve
-#include <equation_system/systemfunctional.h>
-#include <equation_system/systemjacobian.h>
-#include <equation_system/evalnode.h>
+#include <equation_system/system_functional.h>
+#include <equation_system/system_jacobian.h>
+#include <equation_system/eval_node.h>
 
-/*\XXX TODO: Texture representation for doubles*/
-texture<float,1,cudaReadModeElementType> yTexJ;
-texture<float,1,cudaReadModeElementType> kTexJ;
 
 #define SHARED_BUF_SIZE 256 
 
-namespace System {
+namespace cusolve{
 	
+	// Default constructor
 	template<typename T>
-	cooJacobian<T>
-		::cooJacobian() {
-		
+	coo_jacobian<T>
+		::coo_jacobian() {}
+
+
+	// Destructor
+	template<typename T>
+	coo_jacobian<T>
+		::~coo_jacobian() {
+			this->idxI.clear();
+			this->idxJ.clear();
+
+			// Rest of deallocation done in parent class system_jacobian
 		}
 
 
+	// Constructor with functional argument
 	template<typename T>
-	cooJacobian<T>
-		::cooJacobian(const SystemFunctional<T> &F) {
+	coo_jacobian<T>
+		::coo_jacobian(const system_functional<T> &F) {
 
 		int displacement=0;
 
 		this->maxElements = -1;
 		
-		const std::vector<T>& kInds_F = F.getkInds();
-		const std::vector<T>& constants_F = F.getConstants();
-		const std::vector<std::map<T,T> >& y_complete = F.getyFull();
-		const std::vector<int>& terms_F = F.getTerms();
-
+		const std::vector<T>& kInds_F = F.get_k_inds();
+		const std::vector<T>& constants_F = F.get_constants();
+		const std::vector<std::map<T,T> >& y_complete = F.get_yFull();
+		const std::vector<int>& terms_F = F.get_terms();
 
 		for (int i=0; i<terms_F.size(); i++){
 
@@ -134,12 +141,12 @@ namespace System {
 
 		}
 
+		// Sanity check
 		assert(this->terms.size()==this->idxJ.size());
-		//
-		//
+
 		this->nbElem = this->idxI.size();
 
-	#ifdef __VERBOSE
+	#ifdef VERBOSE
 
 		displacement =0;
 
@@ -182,14 +189,13 @@ namespace System {
 
 	#endif
 
-	
 			// LION-CODES: init.cpp
 			// Number of leaves in the Jacobian matrix
 			int num_leaves         = this->constants.size();
 			// Number of equations representing the Jacobian (i.e. number of entries in the Jacobian)
 			int num_funcs         = this->terms.size();
 
-			EvalNode<T>* tmp_nodes         = new EvalNode<T>[ num_leaves ];
+			eval_node<T>* tmp_nodes         = new eval_node<T>[ num_leaves ];
 			int * tmp_terms                 = new int[ num_funcs ];
 			int * tmp_offsets                 = new int[ num_funcs ];
 
@@ -226,9 +232,11 @@ namespace System {
 					tmp_nodes[i].yExp2         = it->second;
 				}
 			}
-			cudaMalloc((void**)&this->d_jNodes,sizeof(EvalNode<T>)*num_leaves);
+
+			// CUDA allocation and memory copies
+			cudaMalloc((void**)&this->d_jNodes,sizeof(eval_node<T>)*num_leaves);
 			cudaCheckError("malloc, d_jNodes");
-			cudaMemcpy(this->d_jNodes,tmp_nodes,sizeof(EvalNode<T>)*num_leaves, cudaMemcpyHostToDevice);
+			cudaMemcpy(this->d_jNodes,tmp_nodes,sizeof(eval_node<T>)*num_leaves, cudaMemcpyHostToDevice);
 			cudaCheckError("memcpy, d_jNodes");
 
 			cudaMalloc((void**)&this->d_jTerms, sizeof(int)*num_funcs);
@@ -244,11 +252,11 @@ namespace System {
 
 
 			delete[] tmp_terms, tmp_nodes, tmp_offsets;
-	} // End of cooJacobian()
+	} // End of coo_jacobian()
 
 
 	template<typename T>
-	__host__ void cooJacobian<T>
+	__host__ void coo_jacobian<T>
 			::evaluate(cusp::coo_matrix<int,T,cusp::device_memory> &J,
 					const cusp::array1d<T,cusp::device_memory> &Y,
 					const cusp::array1d<T,cusp::device_memory> &d_kData) const {
@@ -262,34 +270,26 @@ namespace System {
 			const T *d_yp = thrust::raw_pointer_cast(Y.data());
 			const T *d_kp = thrust::raw_pointer_cast(d_kData.data());
 			
-			// Bind textures
-			cudaBindTexture(0,kTexJ,d_kp,sizeof(T)*d_kData.size());
-			cudaBindTexture(0,yTexJ,d_yp,sizeof(T)*Y.size());
-			cudaThreadSynchronize();
-			cudaCheckError("Error from the evaluation of the Jacobian: texture binding");
-
 			// Set up grid configuration
-			dim3 blocks_j, threads_j;
-			blocks_j.x = nbJac;
-			threads_j.x = (mxTermsJ< 32) ? 32 : ceil((T)mxTermsJ/((T)32.0))*32;
+			this->set_grid();
 
+			// Kernel launch
+			#ifdef VERBOSE
 			std::cout << "Starting the Jacobian evaluation routine on the GPU with NTH=" << threads_j.x << " and NBL=" << blocks_j.x << std::endl;
-			k_JacobianEvaluate<T> <<<blocks_j,threads_j>>> (d_Jp,this->d_jNodes,this->d_jTerms,this->d_jOffsetTerms,d_kp,d_yp);
+			#endif
+
+			k_jacobian_evaluate<T> <<<blocks_j,threads_j>>> (d_Jp,this->d_jNodes,this->d_jTerms,this->d_jOffsetTerms,d_kp,d_yp);
 			cudaThreadSynchronize();
-			cudaCheckError("Error from the evaluation of the Jacobian: kernel call");
-
-			cudaUnbindTexture(kTexJ);
-			cudaUnbindTexture(yTexJ);
-
+			cudaCheckError("ERROR from the evaluation of the Jacobian: kernel call");
 	}
 
 		
 
 
 	template<typename T>
-	__global__ void k_JacobianEvaluate(
+	__global__ void k_jacobian_evaluate(
 					T *d_Jp,
-					const EvalNode<T> *d_jNodes,
+					const eval_node<T> *d_jNodes,
 					const int *d_jTerms,
 					const int *d_jOffsetTerms,
 					T const* __restrict__ d_kp,
@@ -297,7 +297,6 @@ namespace System {
 					) {
 
 		__shared__ volatile T scratch[256];
-	//	__shared__ T scratch[256];
 
 		// Could use constant mem here
 		int index = d_jOffsetTerms[blockIdx.x];
@@ -307,7 +306,7 @@ namespace System {
 
 		if (threadIdx.x<terms_this_function){
 
-			EvalNode<T> node = d_jNodes[index+threadIdx.x];
+			eval_node<T> node = d_jNodes[index+threadIdx.x];
 
 			fnt                = node.constant;
 			int K_index        = (node.kIdx-1);
@@ -319,16 +318,9 @@ namespace System {
 			} else {
 				fnt *= 1.0;
 			}	
-			//	fnt                *= pow(tex1Dfetch(yTexJ, node.yIdx1-1),node.yExp1);        
-			if (node.yIdx2 != -1)
+			if (node.yIdx2 != -1) {
 				fnt                *= pow(d_yp[node.yIdx2-1],node.yExp2);        
-			//	fnt                *= pow(tex1Dfetch(yTexJ, node.yIdx2-1),node.yExp2);        
-	
-	//	printf("b : %i t: %i c: %14.6e kidx: %d y1idx: %d e1: %f y2idx: %d e2: %f fnt : %14.6e k : %14.6e y: %14.6e\n",\
-	//		blockIdx.x,threadIdx.x,node.constant,node.kIdx,node.yIdx1,node.yExp1,node.yIdx2,\
-	//			node.yExp2, fnt, d_kp[K_index], d_yp[node.yIdx1-1]);
-			//	node.yExp2, fnt, tex1Dfetch(kTexJ,node.kIdx-1), tex1Dfetch(yTexJ, node.yIdx1-1));
-
+			}	
 		}
 
 		scratch[threadIdx.x] = fnt;
@@ -362,11 +354,9 @@ namespace System {
 		if (threadIdx.x < 2)                scratch [ threadIdx.x ]         += scratch [ threadIdx.x + 2 ];
 		if (threadIdx.x < 1)                scratch [ threadIdx.x ]         += scratch [ threadIdx.x + 1 ];
 
-
-
 		if (threadIdx.x == 0)
 			d_Jp[blockIdx.x]         = scratch[0];
 	}		
 
-} // End of namespace System		
+} // End of namespace cusolve 
 
