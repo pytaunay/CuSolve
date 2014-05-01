@@ -1,5 +1,5 @@
 /**
- * @file evalnode.h
+ * @file eval_node.h
  * @author Pierre-Yves Taunay (py.taunay@psu.edu)
  * @date November, 2013
  * @brief Simple struct for a node in an equation tree
@@ -8,9 +8,9 @@
 
 #pragma once
 
-namespace System {
+namespace cusolve {
 	template<typename T>
-	struct EvalNode{
+	struct eval_node{
 
 		T constant;
 		int kIdx;
@@ -20,5 +20,4 @@ namespace System {
 		T yExp2;
 
 	};
-}
-
+}	
